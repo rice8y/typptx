@@ -1,6 +1,8 @@
 # <img src="docs/assets/logo.svg" alt="Typptx" width="100%">
 
-Typptx converts Typst documents into editable PowerPoint presentations.
+Typptx is a command-line tool that converts Typst to PowerPoint with editable text, lists, tables, equations, and vector shapes.
+
+Typptx has the following features:
 
 - Editable text, lists, and tables
 - Native click animations for Touying and Polylux overlays
