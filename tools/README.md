@@ -67,8 +67,8 @@ tools/powerpoint_roundtrip.ps1 -Presentation build/qa/input.pptx `
   -OutputDirectory build/office-run
 ```
 
-The [CI workflow](../.github/workflows/ci.yml) runs the Rust and Python tests on macOS (Apple Silicon and Intel), Linux, and Windows. Hosted runners do not run PowerPoint; private-document and network-dependent tests remain opt-in.
+The [CI workflow](../.github/workflows/ci.yml) runs the Rust and Python tests on pull requests across macOS (Apple Silicon and Intel), Linux, and Windows. Hosted runners do not run PowerPoint; private-document and network-dependent tests remain opt-in.
 
-The optional `powerpoint` job runs only on `workflow_dispatch` with `office` enabled. Configure a **dedicated self-hosted Windows runner** labeled `powerpoint`, with licensed PowerPoint, LLVM, Rust, Python, and the required fonts available. Start the runner in an interactive desktop session. The COM runner needs validation on the configured Windows/Office environment before treating its output as a baseline.
+Run the PowerPoint script locally in an interactive Windows desktop session with licensed PowerPoint and the required fonts installed. The COM runner needs validation on the configured Windows/Office environment before treating its output as a baseline.
 
 The runner uses Microsoft's documented [Open](https://learn.microsoft.com/en-us/office/vba/api/powerpoint.presentations.open), [SaveCopyAs](https://learn.microsoft.com/en-us/office/vba/api/powerpoint.presentation.savecopyas), [table cells](https://learn.microsoft.com/en-us/office/vba/api/powerpoint.table), and [ExportAsFixedFormat](https://learn.microsoft.com/en-us/office/vba/api/powerpoint.presentation.exportasfixedformat) APIs. It does not use LibreOffice or an online conversion service.
