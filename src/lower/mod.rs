@@ -1,5 +1,6 @@
 //! Lower compiled Typst pages to the portable presentation model.
 mod bibliography;
+mod links;
 mod lists;
 mod pictures;
 mod structure;
@@ -96,7 +97,7 @@ fn convert_document(
     };
     let notes = crate::compiler::notes::extract(document)?;
     let mut output = Presentation {
-        schema_version: 14,
+        schema_version: 15,
         slides: Vec::new(),
         diagnostics: Vec::new(),
         fonts: Vec::new(),
@@ -218,6 +219,7 @@ fn convert_document(
             background: None,
             elements: Vec::new(),
             notes: notes[page_idx].clone(),
+            links: links::collect(&capture.pages[page_idx], document),
         };
         match page.fill_or_white() {
             Some(Paint::Solid(color)) => slide.background = Some(rgba(color)),

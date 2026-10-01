@@ -139,8 +139,11 @@ pub fn write(presentation: &Presentation) -> Result<Vec<u8>> {
         None
     };
     let mut ids = Vec::new();
+    let slide_parts = (0..presentation.slides.len())
+        .map(|_| part.add_new_part_auto_id::<_, SlidePart>(&mut doc))
+        .collect::<std::result::Result<Vec<_>, _>>()?;
     for (index, slide) in presentation.slides.iter().enumerate() {
-        let slide_part = part.add_new_part_auto_id::<_, SlidePart>(&mut doc)?;
+        let slide_part = slide_parts[index].clone();
         slide_part.create_relationship_to_part(&mut doc, layout.clone())?;
         ids.push(p::SlideId {
             id: 256 + index as u32,
@@ -179,6 +182,34 @@ pub fn write(presentation: &Presentation) -> Result<Vec<u8>> {
                 format!("link{}", index + 1),
                 url.clone(),
             )?;
+        }
+        for link in &slide.links {
+            let target = link
+                .target
+                .checked_sub(1)
+                .and_then(|i| slide_parts.get(i))
+                .context("internal link targets a nonexistent slide")?;
+            let relationship = slide_part
+                .create_relationship_to_part_with_id(
+                    &mut doc,
+                    target.clone(),
+                    format!("navigation{}", link.target),
+                )
+                .with_context(|| format!("create link to slide {}", link.target))?;
+            let mut shape = drawing::vector(&link.region, next_id);
+            next_id += 1;
+            let properties = &mut shape
+                .non_visual_shape_properties
+                .non_visual_drawing_properties;
+            properties.name = format!("Link to slide {}", link.target);
+            properties.hyperlink_on_click = Some(Box::new(a::HyperlinkOnClick {
+                id: Some(relationship),
+                action: Some("ppaction://hlinksldjump".into()),
+                ..Default::default()
+            }));
+            shapes
+                .shape_tree_choice
+                .push(p::ShapeTreeChoice::Shape(Box::new(shape)));
         }
         let background = slide.background.map(|c| {
             Box::new(p::Background {

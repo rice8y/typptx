@@ -453,6 +453,16 @@ pub struct Slide {
     /// Plain text in the editable PowerPoint speaker notes body.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    /// Clickable regions for internal navigation, including links on diagrams.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<SlideLink>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlideLink {
+    /// One-based destination slide number.
+    pub target: usize,
+    pub region: VectorShape,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
