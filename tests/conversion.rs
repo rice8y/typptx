@@ -1,7 +1,7 @@
+use ooxmlsdk::common::resolve_relationship_target_path;
 use std::{
     fs,
     io::{Cursor, Read},
-    path::Path,
     process::Command,
 };
 use typptx::{ir::*, lower, pptx, world::CompilerWorld};
@@ -226,31 +226,16 @@ fn package_xml_and_relationship_targets_are_valid() {
             .unwrap();
         let doc = roxmltree::Document::parse(&xml).unwrap_or_else(|e| panic!("{name}: {e}"));
         if name.ends_with(".rels") {
-            let base = if name == "_rels/.rels" {
-                Path::new("")
-            } else {
-                Path::new(name).parent().unwrap().parent().unwrap()
-            };
+            // Package paths use '/' on every OS, including Windows.
+            let (base, _) = name.rsplit_once("_rels/").unwrap();
             for rel in doc
                 .root_element()
                 .children()
                 .filter(|n| n.is_element() && n.attribute("TargetMode") != Some("External"))
             {
-                let mut resolved = std::path::PathBuf::new();
-                for c in base.join(rel.attribute("Target").unwrap()).components() {
-                    match c {
-                        std::path::Component::ParentDir => {
-                            resolved.pop();
-                        }
-                        std::path::Component::Normal(s) => resolved.push(s),
-                        _ => {}
-                    }
-                }
-                assert!(
-                    names.contains(resolved.to_str().unwrap()),
-                    "{name}: missing {}",
-                    resolved.display()
-                );
+                let resolved =
+                    resolve_relationship_target_path(base, rel.attribute("Target").unwrap());
+                assert!(names.contains(&resolved), "{name}: missing {resolved}");
             }
         }
     }
