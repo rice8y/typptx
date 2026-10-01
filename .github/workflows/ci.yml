@@ -43,15 +43,11 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes clang libclang-dev fonts-dejavu-core fonts-liberation
-      - name: Locate macOS libclang
-        if: runner.os == 'macOS'
-        run: echo "LIBCLANG_PATH=$(dirname "$(xcrun --find clang)")/../lib" >> "$GITHUB_ENV"
-      - name: Locate Windows libclang
-        if: runner.os == 'Windows'
-        run: echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin' >> "$GITHUB_ENV"
+          sudo apt-get install --yes g++ fonts-dejavu-core fonts-liberation
       - name: Run Rust tests
         run: cargo test --locked --all-targets --no-fail-fast
+      - name: Verify the published crate builds with bundled HarfBuzz
+        run: cargo package --locked
       - name: Run Python tests
         run: python -m unittest discover -s tools -p 'test_*.py'
       - name: Parse the optional Office runner without launching Office

@@ -30,19 +30,13 @@ pub(super) fn family(font: &FontInstance) -> String {
 }
 
 pub(super) fn materialize(font: &FontInstance) -> Option<Vec<u8>> {
-    use hb_subset::{Blob, FontFace, SubsetInput, sys};
     use write_fonts::{
         FontBuilder,
         from_obj::ToOwnedTable,
         read::{FontRef, TableProvider},
         types::NameId,
     };
-    let face =
-        FontFace::new_with_index(Blob::from_bytes(font.data().as_slice()).ok()?, font.index())
-            .ok()?;
-    let mut input = SubsetInput::new().ok()?;
-    input.keep_everything();
-    input.flags().0 |= sys::hb_subset_flags_t::DOWNGRADE_CFF2;
+    let mut axes = Vec::new();
     for axis in &font.info().axes {
         let value = font
             .variations()
@@ -50,24 +44,9 @@ pub(super) fn materialize(font: &FontInstance) -> Option<Vec<u8>> {
             .iter()
             .find(|(tag, _)| *tag == axis.tag)
             .map_or(axis.default.0, |(_, v)| v.0);
-        // Both pointers remain owned by live wrappers throughout this call.
-        let ok = unsafe {
-            sys::hb_subset_input_pin_axis_location(
-                input.as_raw(),
-                face.as_raw(),
-                u32::from_be_bytes(axis.tag.to_bytes()),
-                value,
-            )
-        };
-        if ok == 0 {
-            return None;
-        }
+        axes.push((u32::from_be_bytes(axis.tag.to_bytes()), value));
     }
-    let fixed = input.subset_font(&face).ok()?;
-    if fixed.glyph_count() != face.glyph_count() {
-        return None;
-    }
-    let blob = fixed.underlying_blob();
+    let blob = super::harfbuzz::instantiate(font.data().as_slice(), font.index(), &axes)?;
     let parsed = FontRef::new(&blob).ok()?;
     if parsed.fvar().is_ok() || parsed.cff2().is_ok() {
         return None;

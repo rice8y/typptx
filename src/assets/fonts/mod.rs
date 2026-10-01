@@ -6,6 +6,7 @@ use typst::{
     layout::FrameItem,
     text::{FontInstance, FontStyle},
 };
+mod harfbuzz;
 mod instance;
 
 pub(crate) fn family(font: &FontInstance) -> String {

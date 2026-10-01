@@ -82,13 +82,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes clang libclang-dev
-      - name: Locate macOS libclang
-        if: runner.os == 'macOS'
-        run: echo "LIBCLANG_PATH=$(dirname "$(xcrun --find clang)")/../lib" >> "$GITHUB_ENV"
-      - name: Locate Windows libclang
-        if: runner.os == 'Windows'
-        run: echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin' >> "$GITHUB_ENV"
+          sudo apt-get install --yes g++
       - name: Build
         run: cargo build --release --locked --target "$RELEASE_TARGET"
       - name: Check the binary and convert a document

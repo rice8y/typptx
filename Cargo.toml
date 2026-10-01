@@ -7,6 +7,7 @@ description = "Export Typst documents to structurally editable PowerPoint presen
 license = "MIT"
 repository = "https://github.com/rice8y/typptx"
 readme = "README.md"
+include = ["/src/**", "/build.rs", "/vendor/**", "/tests/**", "/tools/**", "/docs/assets/**", "/README.md", "/LICENSE", "/Cargo.lock"]
 
 [dependencies]
 anyhow = "1"
@@ -30,7 +31,8 @@ unicode-bidi = "=0.3.18"
 unicode-script = "=0.5.8"
 unicode-segmentation = "=1.13.3"
 
-hb-subset = { version = "=0.3.0", path = "vendor/hb-subset", features = ["bundled"] }
+[build-dependencies]
+cc = "1"
 
 [dev-dependencies]
 roxmltree = "0.21"
