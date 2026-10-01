@@ -6,5 +6,6 @@ pub mod graphics;
 pub mod ir;
 pub mod lower;
 pub mod math;
+pub mod pptx;
 
 pub use compiler::{capture, world};
