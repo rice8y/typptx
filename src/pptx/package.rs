@@ -180,52 +180,31 @@ pub fn write(presentation: &Presentation) -> Result<Vec<u8>> {
             )?);
         }
         for link in &slide.links {
-            let (relationship, action, name) = match &link.target {
-                LinkTarget::Slide(number) => {
-                    let target = number
-                        .checked_sub(1)
-                        .and_then(|i| slide_parts.get(i))
-                        .context("internal link targets a nonexistent slide")?;
-                    let relationship = slide_part
-                        .create_relationship_to_part_with_id(
-                            &mut doc,
-                            target.clone(),
-                            format!("navigation{number}"),
-                        )
-                        .with_context(|| format!("create link to slide {number}"))?;
-                    (
-                        relationship,
-                        Some("ppaction://hlinksldjump".into()),
-                        format!("Link to slide {number}"),
-                    )
-                }
-                LinkTarget::Url(url) => (
-                    rels.add("hyperlink", url, true),
-                    None,
-                    "External link".into(),
-                ),
-            };
             let mut shape = drawing::vector(&link.region, next_id);
             next_id += 1;
             let properties = &mut shape
                 .non_visual_shape_properties
                 .non_visual_drawing_properties;
-            properties.name = name;
-            properties.hyperlink_on_click = Some(Box::new(a::HyperlinkOnClick {
-                id: Some(relationship),
-                action,
-                ..Default::default()
-            }));
+            properties.name = "Empty link area".into();
+            properties.hyperlink_on_click = Some(Box::new(rels.hyperlink(&link.target)));
             shapes
                 .shape_tree_choice
                 .push(p::ShapeTreeChoice::Shape(Box::new(shape)));
         }
-        for (index, url) in rels.links.iter().enumerate() {
-            slide_part.add_hyperlink_relationship(
-                &mut doc,
-                format!("link{}", index + 1),
-                url.clone(),
-            )?;
+        for (index, target) in rels.links.iter().enumerate() {
+            let id = format!("link{}", index + 1);
+            match target {
+                LinkTarget::Url(url) => {
+                    slide_part.add_hyperlink_relationship(&mut doc, id, url.clone())?;
+                }
+                LinkTarget::Slide(number) => {
+                    let target = number
+                        .checked_sub(1)
+                        .and_then(|i| slide_parts.get(i))
+                        .context("internal link targets a nonexistent slide")?;
+                    slide_part.create_relationship_to_part_with_id(&mut doc, target.clone(), id)?;
+                }
+            }
         }
         let background = slide.background.map(|c| {
             Box::new(p::Background {

@@ -76,7 +76,7 @@ pub fn prepare(
             page.frame = Frame::hard(Size::new(Abs::pt(bounds.width), Abs::pt(bounds.height)));
             page.frame
                 .push_frame(Point::new(Abs::pt(-bounds.x), Abs::pt(-bounds.y)), content);
-            let svg = typst_svg::svg(&page, &Default::default());
+            let svg = crate::assets::svg::page(&page)?;
             let png = crate::assets::images::render_fallback(&page, dpi)?;
             images[page_idx].insert(
                 first,

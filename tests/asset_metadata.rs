@@ -41,18 +41,8 @@ Target <target>
 "#,
     );
     assert!(
-        p.slides[0]
-            .links
-            .iter()
-            .any(|l| l.target == LinkTarget::Slide(2))
-    );
-    assert_eq!(
-        p.slides[0]
-            .links
-            .iter()
-            .filter(|l| matches!(l.target, LinkTarget::Url(_)))
-            .count(),
-        3
+        p.slides[0].links.is_empty(),
+        "linked objects must own their click targets"
     );
     let mut zip = zip::ZipArchive::new(Cursor::new(pptx::write(&p).unwrap())).unwrap();
     let rels = xml(&mut zip, "ppt/slides/_rels/slide1.xml.rels");
@@ -81,7 +71,7 @@ Target <target>
                 "id"
             )) == Some(id))
             .count(),
-        4
+        3
     );
     assert!(
         links
@@ -99,34 +89,42 @@ fn clipped_rotated_links_keep_the_click_region_and_hidden_links_disappear() {
 #hide[#link("https://example.com/hidden")[#image("icon.svg",width:40pt)]]
 "#,
     );
-    assert_eq!(p.slides[0].links.len(), 2);
-    let crop = p.slides[0]
-        .links
-        .iter()
-        .find(|l| l.target == LinkTarget::Url("https://example.com/crop".into()))
-        .unwrap();
-    assert!((crop.region.bounds.width - 60.).abs() < 0.01);
-    assert!((crop.region.bounds.height - 30.).abs() < 0.01);
-    let rotated = p.slides[0]
-        .links
-        .iter()
-        .find(|l| l.target == LinkTarget::Url("https://example.com/rotate".into()))
-        .unwrap();
-    let points: Vec<_> = rotated
-        .region
-        .commands
-        .iter()
-        .filter_map(|c| match c {
-            PathCommand::Move(p) | PathCommand::Line(p) => Some(p),
-            _ => None,
+    assert!(p.slides[0].links.is_empty());
+    let mut z = zip::ZipArchive::new(Cursor::new(pptx::write(&p).unwrap())).unwrap();
+    let slide = xml(&mut z, "ppt/slides/slide1.xml");
+    let d = roxmltree::Document::parse(&slide).unwrap();
+    assert_eq!(
+        d.descendants()
+            .filter(|n| n.tag_name().name() == "hlinkClick")
+            .count(),
+        2
+    );
+    for link in d
+        .descendants()
+        .filter(|n| n.tag_name().name() == "hlinkClick")
+    {
+        assert!(link.ancestors().any(|n| n.tag_name().name() == "pic"));
+    }
+    assert!(!d.descendants().any(|n| n.tag_name().name() == "sp"));
+    let rels = xml(&mut z, "ppt/slides/_rels/slide1.xml.rels");
+    assert!(!rels.contains("example.com/hidden"));
+    assert!(rels.contains("example.com/crop"));
+    assert!(rels.contains("example.com/rotate"));
+    let extents: Vec<_> = d
+        .descendants()
+        .filter(|n| n.tag_name().name() == "pic")
+        .flat_map(|p| {
+            p.descendants()
+                .filter(|n| n.tag_name().name() == "ext" && n.attribute("cx").is_some())
+        })
+        .map(|n| {
+            (
+                n.attribute("cx").unwrap().parse::<i64>().unwrap(),
+                n.attribute("cy").unwrap().parse::<i64>().unwrap(),
+            )
         })
         .collect();
-    assert!(
-        points
-            .windows(2)
-            .any(|p| (p[0][0] - p[1][0]).abs() > 1. && (p[0][1] - p[1][1]).abs() > 1.)
-    );
-    pptx::write(&p).unwrap();
+    assert!(extents.contains(&(60 * 12700, 30 * 12700)));
 }
 
 #[test]
@@ -206,4 +204,84 @@ fn different_previews_share_svg_without_substituting_image_data() {
     }
     sizes.sort();
     assert_eq!(sizes, [(40, 20), (80, 40), (160, 80)]);
+}
+
+#[test]
+fn moving_and_deleting_a_linked_picture_never_leaves_a_click_overlay() {
+    let mut p = compile(
+        "#link(\"https://example.com/image\")[#image(\"icon.svg\",width:80pt)]\n\n#link(\"https://example.com/text\")[Editable link]",
+    );
+    let Element::Linked { element, .. } = &mut p.slides[0].elements[0] else {
+        panic!("expected owned picture link")
+    };
+    let Element::Picture { bounds, .. } = element.as_mut() else {
+        panic!("expected picture")
+    };
+    bounds.x += 40.;
+    let mut z = zip::ZipArchive::new(Cursor::new(pptx::write(&p).unwrap())).unwrap();
+    let slide = xml(&mut z, "ppt/slides/slide1.xml");
+    let d = roxmltree::Document::parse(&slide).unwrap();
+    let picture = d
+        .descendants()
+        .find(|n| n.tag_name().name() == "pic")
+        .unwrap();
+    assert_eq!(
+        picture
+            .descendants()
+            .find(|n| n.tag_name().name() == "off")
+            .unwrap()
+            .attribute("x"),
+        Some("762000")
+    );
+    assert_eq!(
+        picture
+            .descendants()
+            .filter(|n| n.tag_name().name() == "hlinkClick")
+            .count(),
+        1
+    );
+    assert_eq!(
+        d.descendants()
+            .filter(|n| n.tag_name().name() == "sp")
+            .count(),
+        1
+    );
+    p.slides[0].elements.remove(0);
+    let mut z = zip::ZipArchive::new(Cursor::new(pptx::write(&p).unwrap())).unwrap();
+    let rels = xml(&mut z, "ppt/slides/_rels/slide1.xml.rels");
+    assert!(!rels.contains("example.com/image"));
+    assert!(rels.contains("example.com/text"));
+}
+
+#[test]
+fn partial_text_links_follow_runs_through_wrapping_and_table_cells() {
+    let p = compile(
+        r#"
+Before #link("https://example.com/text")[many linked words that can wrap to the next line] after.
+#table(columns:1,[Start #link(<target>)[internal cell link] end.])
+#pagebreak()
+Target <target>
+"#,
+    );
+    assert!(p.slides[0].links.is_empty());
+    let mut z = zip::ZipArchive::new(Cursor::new(pptx::write(&p).unwrap())).unwrap();
+    let slide = xml(&mut z, "ppt/slides/slide1.xml");
+    let d = roxmltree::Document::parse(&slide).unwrap();
+    for link in d
+        .descendants()
+        .filter(|n| n.tag_name().name() == "hlinkClick")
+    {
+        assert_eq!(link.parent().unwrap().tag_name().name(), "rPr");
+    }
+    assert_eq!(
+        d.descendants()
+            .filter(|n| n.tag_name().name() == "sp")
+            .count(),
+        1
+    );
+    assert!(
+        d.descendants()
+            .filter(|n| n.tag_name().name() == "hlinkClick")
+            .any(|n| n.attribute("action") == Some("ppaction://hlinksldjump"))
+    );
 }

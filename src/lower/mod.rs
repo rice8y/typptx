@@ -7,16 +7,15 @@ mod structure;
 mod table;
 mod text;
 
-use crate::compiler::capture::{Capture, Kind, Leaf, filter_frame};
+use crate::compiler::capture::{Capture, Kind, Leaf};
 use crate::compiler::diagnostics::{self, Origin};
 pub use crate::graphics::rgba;
 use crate::ir::*;
-use crate::lower::pictures::{drawing, native_image, prepare_inline_objects};
+use crate::lower::pictures::{native_image, prepare_inline_objects};
 use crate::lower::structure::{parent_structure, structure};
 use crate::lower::text::{fragment_owner, native_fragment};
 use anyhow::{Result, anyhow, ensure};
 use std::collections::BTreeMap;
-use typst::foundations::Smart;
 use typst::layout::FrameItem;
 use typst::visualize::Paint;
 use typst_layout::PagedDocument;
@@ -97,7 +96,7 @@ fn convert_document(
     };
     let notes = crate::compiler::notes::extract(document)?;
     let mut output = Presentation {
-        schema_version: 17,
+        schema_version: 18,
         slides: Vec::new(),
         diagnostics: Vec::new(),
         fonts: Vec::new(),
@@ -105,7 +104,7 @@ fn convert_document(
     for (page_idx, page) in document.pages().iter().enumerate() {
         let leaves = &capture.pages[page_idx];
         let mut used = vec![false; leaves.len()];
-        let mut blocked = vec![false; leaves.len()];
+        let mut blocked = vec![None; leaves.len()];
         let mut native: BTreeMap<usize, Vec<Element>> = BTreeMap::new();
         // Outer structural blocks own their contents. Do not convert a failed
         // list/table into apparently editable fragments of its inner text.
@@ -126,7 +125,9 @@ fn convert_document(
                 let Some(np) = node.pages.get(&page_idx) else {
                     continue;
                 };
-                if np.leaves.is_empty() || np.leaves.iter().any(|&i| used[i] || blocked[i]) {
+                if np.leaves.is_empty()
+                    || np.leaves.iter().any(|&i| used[i] || blocked[i].is_some())
+                {
                     continue;
                 }
                 if parent_structure(&capture, idx).is_some() {
@@ -179,16 +180,14 @@ fn convert_document(
                         if has_inline && elements.len() > 1 {
                             elements = vec![Element::group(elements)];
                         }
-                        native.insert(ids[0], elements);
+                        native.insert(ids[0], links::attach(&capture, page_idx, &ids, elements));
                     }
                     Err(error) => {
-                        if !options.allow_image_fallback
-                            && matches!(kind, Kind::Paragraph | Kind::Heading)
-                        {
+                        if matches!(kind, Kind::Paragraph | Kind::Heading) {
                             continue;
                         }
                         for &i in &ids {
-                            blocked[i] = true;
+                            blocked[i] = Some(idx);
                         }
                         output.diagnostics.push(diagnostics::from_error(
                             page_idx + 1,
@@ -219,25 +218,18 @@ fn convert_document(
             background: None,
             elements: Vec::new(),
             notes: notes[page_idx].clone(),
-            links: links::collect(&capture.pages[page_idx], document),
+            links: Vec::new(),
         };
-        match page.fill_or_white() {
-            Some(Paint::Solid(color)) => slide.background = Some(rgba(color)),
-            Some(paint @ Paint::Tiling(_)) => {
-                match crate::graphics::tiling::rectangle(paint, bounds, options) {
-                    Ok(elements) => slide.elements.extend(elements),
-                    Err(error) => output.diagnostics.push(diagnostics::from_error(
-                        page_idx + 1,
-                        "background".into(),
-                        "unsupported_element",
-                        "page-background",
-                        error,
-                        None,
-                    )),
-                }
+        let background = match page.fill_or_white() {
+            Some(Paint::Solid(color)) => {
+                slide.background = Some(rgba(color));
+                Ok(Vec::new())
             }
-            Some(ref paint) => match crate::graphics::brush(paint) {
-                Ok(fill) => slide.elements.push(Element::Shape(VectorShape {
+            Some(paint @ Paint::Tiling(_)) => {
+                crate::graphics::tiling::rectangle(paint, bounds, options)
+            }
+            Some(ref paint) => crate::graphics::brush(paint).map(|fill| {
+                vec![Element::Shape(VectorShape {
                     bounds,
                     commands: vec![
                         PathCommand::Move([0., 0.]),
@@ -248,17 +240,33 @@ fn convert_document(
                     ],
                     fill: Some(fill),
                     stroke: None,
-                })),
-                Err(error) => output.diagnostics.push(diagnostics::from_error(
+                })]
+            }),
+            None => Ok(Vec::new()),
+        };
+        match background {
+            Ok(elements) => slide.elements.extend(elements),
+            Err(error) => {
+                output.diagnostics.push(diagnostics::from_error(
                     page_idx + 1,
                     "background".into(),
-                    "unsupported_element",
+                    if options.allow_image_fallback {
+                        "drawing_fallback"
+                    } else {
+                        "unsupported_element"
+                    },
                     "page-background",
                     error,
                     None,
-                )),
-            },
-            None => {}
+                ));
+                if options.allow_image_fallback {
+                    let mut background = page.clone();
+                    background.frame = typst::layout::Frame::hard(page.frame.size());
+                    slide
+                        .elements
+                        .push(pictures::drawing(&background, bounds, options.image_dpi)?);
+                }
+            }
         }
         // Maintain paint order: drawings before, between, and after native
         // objects are separate layers instead of one full-slide background.
@@ -267,11 +275,11 @@ fn convert_document(
             if let Some(elements) = native.remove(&i) {
                 slide.elements.extend(elements);
             }
-            if used[i] || (blocked[i] && !options.allow_image_fallback) {
+            if used[i] || (blocked[i].is_some() && !options.allow_image_fallback) {
                 i += 1;
                 continue;
             }
-            if !options.allow_image_fallback {
+            if blocked[i].is_none() {
                 let start = i;
                 let result = match &leaves[i].item {
                     FrameItem::Text(_) => {
@@ -279,7 +287,7 @@ fn convert_document(
                         i += 1;
                         while i < leaves.len()
                             && !used[i]
-                            && !blocked[i]
+                            && blocked[i].is_none()
                             && !native.contains_key(&i)
                             && matches!(leaves[i].item, FrameItem::Text(_))
                             && fragment_owner(&capture, &leaves[i]) == owner
@@ -310,6 +318,9 @@ fn convert_document(
                         native_image(&leaves[start], image, *size, options.image_dpi)
                     }
                     FrameItem::Link(..) => {
+                        if let Some(link) = links::empty_region(&capture, page_idx, i) {
+                            slide.links.push(link);
+                        }
                         i += 1;
                         continue;
                     }
@@ -320,7 +331,12 @@ fn convert_document(
                 };
                 match result {
                     Ok(elements) => {
-                        slide.elements.extend(elements);
+                        slide.elements.extend(links::attach(
+                            &capture,
+                            page_idx,
+                            &(start..i).collect::<Vec<_>>(),
+                            elements,
+                        ));
                         for id in start..i {
                             if let Some(image) = inline_objects[page_idx].remove(&id) {
                                 slide.elements.extend(image);
@@ -330,44 +346,60 @@ fn convert_document(
                             }
                         }
                     }
-                    Err(error) => output.diagnostics.push(diagnostics::from_error(
-                        page_idx + 1,
-                        format!("display-list:{start}"),
-                        "unsupported_element",
-                        "object",
-                        error,
-                        Origin::leaf(&capture, page_idx, start),
-                    )),
+                    Err(error) => {
+                        output.diagnostics.push(diagnostics::from_error(
+                            page_idx + 1,
+                            format!("display-list:{start}"),
+                            if options.allow_image_fallback {
+                                "drawing_fallback"
+                            } else {
+                                "unsupported_element"
+                            },
+                            "object",
+                            error,
+                            Origin::leaf(&capture, page_idx, start),
+                        ));
+                        if options.allow_image_fallback {
+                            let fallback = pictures::fallback(
+                                page,
+                                &font_capture.pages[page_idx],
+                                start..i,
+                                options.image_dpi,
+                            )?;
+                            slide.elements.extend(links::attach(
+                                &font_capture,
+                                page_idx,
+                                &(start..i).collect::<Vec<_>>(),
+                                vec![fallback],
+                            ));
+                        }
+                    }
                 }
                 continue;
             }
             let start = i;
-            while i < leaves.len() && !used[i] && !native.contains_key(&i) {
+            while i < leaves.len()
+                && blocked[i] == blocked[start]
+                && !used[i]
+                && !native.contains_key(&i)
+            {
                 i += 1;
             }
             if !leaves[start..i].iter().any(Leaf::is_drawable) {
                 continue;
             }
-            let unowned_text =
-                (start..i).any(|j| !blocked[j] && matches!(leaves[j].item, FrameItem::Text(_)));
-            if unowned_text {
-                output.diagnostics.push(diagnostics::from_error(
-                    page_idx + 1,
-                    format!("display-list:{start}"),
-                    "unstructured_text",
-                    "text",
-                    anyhow!("Text without a supported semantic block was retained as a drawing."),
-                    (start..i)
-                        .find(|&j| !blocked[j] && matches!(leaves[j].item, FrameItem::Text(_)))
-                        .and_then(|id| Origin::leaf(&capture, page_idx, id)),
-                ));
-            }
-            let mut section = page.clone();
-            section.fill = Smart::Custom(None);
-            section.frame = filter_frame(&page.frame, &|id| id >= start && id < i, &mut 0);
-            slide
-                .elements
-                .push(drawing(&section, bounds, options.image_dpi)?);
+            let fallback = pictures::fallback(
+                page,
+                &font_capture.pages[page_idx],
+                start..i,
+                options.image_dpi,
+            )?;
+            slide.elements.extend(links::attach(
+                &font_capture,
+                page_idx,
+                &(start..i).collect::<Vec<_>>(),
+                vec![fallback],
+            ));
         }
         slide.elements = slide
             .elements

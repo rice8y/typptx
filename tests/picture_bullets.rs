@@ -183,3 +183,35 @@ fn rotated_picture_lists_keep_editable_text_and_native_bullets() {
     );
     package(&p, 2);
 }
+
+#[test]
+fn rotated_and_cropped_markers_are_baked_into_one_vector_bullet() {
+    for marker in [
+        "rotate(25deg,reflow:true)[#image(\"icon.svg\",width:16pt)]",
+        "box(width:10pt,height:6pt,clip:true)[#image(\"icon.svg\",width:16pt)]",
+        "rotate(25deg,reflow:true)[#box(width:10pt,height:6pt,clip:true)[#image(\"icon.png\",width:16pt)]]",
+        "scale(x:-100%)[#image(\"icon.svg\",width:16pt)]",
+    ] {
+        let p = compile(&format!("#set list(marker:{marker})\n- First\n- Second"));
+        assert_eq!(
+            paragraphs(&p).iter().map(|p| text(p)).collect::<Vec<_>>(),
+            ["First", "Second"]
+        );
+        for paragraph in paragraphs(&p) {
+            let Some(Bullet::Picture {
+                bytes,
+                svg: Some(svg),
+                size,
+                ..
+            }) = &paragraph.bullet
+            else {
+                panic!("expected a vector marker")
+            };
+            assert!(*size > 0.);
+            let preview = image::load_from_memory(bytes).unwrap().to_rgba8();
+            assert!(preview.pixels().any(|p| p.0[3] > 0));
+            assert!(svg.contains("<svg"));
+        }
+        package(&p, 2);
+    }
+}

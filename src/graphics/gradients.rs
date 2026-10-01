@@ -201,6 +201,10 @@ fn rectangle(bounds: Rect, paint: Brush) -> VectorShape {
 
 pub fn expand(element: Element) -> Element {
     match element {
+        Element::Linked { target, element } => Element::Linked {
+            target,
+            element: Box::new(expand(*element)),
+        },
         Element::Group(mut g) => {
             g.elements = g.elements.into_iter().map(expand).collect();
             Element::Group(g)

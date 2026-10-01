@@ -53,7 +53,7 @@ impl Media {
 }
 #[derive(Default)]
 struct Relationships {
-    links: Vec<String>,
+    links: Vec<LinkTarget>,
     bullets: Vec<(Bullet, a::Blip)>,
 }
 impl Relationships {
@@ -102,11 +102,19 @@ impl Relationships {
             .1
             .clone()
     }
-    fn add(&mut self, _kind: &str, target: &str, _external: bool) -> String {
+    fn hyperlink(&mut self, target: &LinkTarget) -> a::HyperlinkOnClick {
+        a::HyperlinkOnClick {
+            id: Some(self.add(target)),
+            action: matches!(target, LinkTarget::Slide(_))
+                .then(|| "ppaction://hlinksldjump".into()),
+            ..Default::default()
+        }
+    }
+    fn add(&mut self, target: &LinkTarget) -> String {
         if let Some(index) = self.links.iter().position(|url| url == target) {
             return format!("link{}", index + 1);
         }
-        self.links.push(target.into());
+        self.links.push(target.clone());
         format!("link{}", self.links.len())
     }
 }
@@ -191,6 +199,65 @@ fn element_node(
     slide_part: &SlidePart,
     media: &mut Media,
 ) -> Result<p::ShapeTreeChoice> {
+    if let Element::Linked { target, element } = element {
+        if let Element::Group(group) = element.as_ref() {
+            // Cropped pictures and transformed paths own their actual visible
+            // geometry. A group-wide link would also activate clipped margins.
+            let mut group = group.clone();
+            group.elements = group
+                .elements
+                .into_iter()
+                .map(|element| Element::Linked {
+                    target: target.clone(),
+                    element: Box::new(element),
+                })
+                .collect();
+            return element_node(
+                &Element::Group(group),
+                next_id,
+                rels,
+                doc,
+                slide_part,
+                media,
+            );
+        }
+        // Office equation compatibility branches do not have a shared cNvPr;
+        // give those branches a native group to own their hyperlink.
+        let mut node = element_node(element, next_id, rels, doc, slide_part, media)?;
+        if matches!(node, p::ShapeTreeChoice::AlternateContent(_)) {
+            node = element_node(
+                &Element::group(vec![(**element).clone()]),
+                next_id,
+                rels,
+                doc,
+                slide_part,
+                media,
+            )?;
+        }
+        let properties = match &mut node {
+            p::ShapeTreeChoice::Shape(s) => {
+                &mut s.non_visual_shape_properties.non_visual_drawing_properties
+            }
+            p::ShapeTreeChoice::Picture(p) => {
+                &mut p
+                    .non_visual_picture_properties
+                    .non_visual_drawing_properties
+            }
+            p::ShapeTreeChoice::GroupShape(g) => {
+                &mut g
+                    .non_visual_group_shape_properties
+                    .non_visual_drawing_properties
+            }
+            p::ShapeTreeChoice::GraphicFrame(g) => {
+                &mut g
+                    .non_visual_graphic_frame_properties
+                    .non_visual_drawing_properties
+            }
+            _ => unreachable!("native linked object has drawing properties"),
+        };
+        properties.hyperlink_on_click = Some(Box::new(rels.hyperlink(target)));
+        return Ok(node);
+    }
     let nonlinear = match element {
         Element::Shape(s) => {
             s.fill
@@ -220,6 +287,7 @@ fn element_node(
     let id = *next_id;
     *next_id += 1;
     match element {
+        Element::Linked { .. } => unreachable!("links are attached above"),
         Element::Group(g) => {
             let mut children = Vec::new();
             for child in &g.elements {

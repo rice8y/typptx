@@ -343,7 +343,7 @@ fn bibliography_labels_share_paragraphs_with_wrapped_entries() {
             .paragraphs
             .iter()
             .flat_map(|p| &p.runs)
-            .any(|r| r.hyperlink.as_deref() == Some("https://example.org/reference"))
+            .any(|r| r.hyperlink == Some(LinkTarget::Url("https://example.org/reference".into())))
     );
     let s = xml(&p);
     let doc = roxmltree::Document::parse(&s).unwrap();

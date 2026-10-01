@@ -148,7 +148,7 @@ fn structure(package: &str) {
     assert!(runs.iter().any(|r| r.math.is_some()));
     assert!(
         runs.iter()
-            .any(|r| r.hyperlink.as_deref() == Some("https://typst.app/"))
+            .any(|r| r.hyperlink == Some(LinkTarget::Url("https://typst.app/".into())))
     );
 }
 
@@ -278,16 +278,19 @@ fn diatypst_navigation_and_themes() {
             .unwrap();
         assert!(alpha < beta);
         assert!(
-            p.slides[beta]
-                .links
+            paragraphs(&p.slides[beta])
                 .iter()
-                .any(|link| link.target == LinkTarget::Slide(alpha + 1))
+                .flat_map(|p| &p.runs)
+                .any(|r| r.hyperlink == Some(LinkTarget::Slide(alpha + 1)))
         );
-        assert!(p.slides.iter().all(|s| {
-            s.links
+        assert!(
+            p.slides
                 .iter()
-                .all(|l| matches!(l.target, LinkTarget::Slide(n) if n > 0 && n <= p.slides.len()))
-        }));
+                .flat_map(paragraphs)
+                .flat_map(|p| &p.runs)
+                .filter_map(|r| r.hyperlink.as_ref())
+                .all(|target| !matches!(target,LinkTarget::Slide(n) if *n==0 || *n>p.slides.len()))
+        );
         assert!(text(&p.slides[beta]).contains("Navigation footer"));
     }
 }

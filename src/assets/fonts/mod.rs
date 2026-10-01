@@ -229,6 +229,10 @@ fn restore_family(output: &mut Presentation, alias: &str, font: &FontInstance) {
         || axis(b"slnt").is_some_and(|v| v != 0.);
     fn visit(e: &mut Element, alias: &str, original: &str, bold: bool, italic: bool) {
         let paragraphs: Vec<_> = match e {
+            Element::Linked { element, .. } => {
+                visit(element, alias, original, bold, italic);
+                return;
+            }
             Element::Text(t) => t.paragraphs.iter_mut().collect(),
             Element::Table(t) => t.cells.iter_mut().flat_map(|c| &mut c.paragraphs).collect(),
             Element::Group(g) => {

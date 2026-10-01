@@ -47,17 +47,12 @@ macro_rules! character_properties {
                 typeface: Some(s.font.clone()),
                 ..Default::default()
             }),
-            hyperlink_on_click: $link.map(|link: &str| {
-                Box::new(a::HyperlinkOnClick {
-                    id: Some(link.into()),
-                    ..Default::default()
-                })
-            }),
+            hyperlink_on_click: $link.map(|link: &a::HyperlinkOnClick| Box::new(link.clone())),
             ..Default::default()
         }
     }};
 }
-pub(super) fn run_properties(run: &Run, link: Option<&str>) -> a::RunProperties {
+pub(super) fn run_properties(run: &Run, link: Option<&a::HyperlinkOnClick>) -> a::RunProperties {
     character_properties!(
         run,
         link,
@@ -69,7 +64,7 @@ pub(super) fn run_properties(run: &Run, link: Option<&str>) -> a::RunProperties 
 fn default_properties(run: &Run) -> a::DefaultRunProperties {
     character_properties!(
         run,
-        None::<&str>,
+        None::<&a::HyperlinkOnClick>,
         DefaultRunProperties,
         default_run_properties_choice1,
         DefaultRunPropertiesChoice
@@ -78,7 +73,7 @@ fn default_properties(run: &Run) -> a::DefaultRunProperties {
 fn end_properties(run: &Run) -> a::EndParagraphRunProperties {
     character_properties!(
         run,
-        None::<&str>,
+        None::<&a::HyperlinkOnClick>,
         EndParagraphRunProperties,
         end_paragraph_run_properties_choice1,
         EndParagraphRunPropertiesChoice
@@ -117,7 +112,9 @@ pub(super) fn properties(p: &Paragraph, rels: &Relationships) -> a::ParagraphPro
         Some(bullet @ Bullet::Picture { size, .. }) => {
             out.paragraph_properties_choice2 = Some(
                 a::ParagraphPropertiesChoice2::BulletSizePoints(a::BulletSizePoints {
-                    val: centipt(*size) as i32,
+                    // PowerPoint draws picture bullets at 70% of this nominal
+                    // point size. Keep the realized image height from Typst.
+                    val: centipt(*size / 0.7) as i32,
                 }),
             );
             a::ParagraphPropertiesChoice4::PictureBullet(Box::new(a::PictureBullet {
@@ -646,10 +643,7 @@ pub(super) fn paragraphs(
                 }));
             continue;
         }
-        let link = run
-            .hyperlink
-            .as_ref()
-            .map(|url| rels.add("hyperlink", url, true));
+        let link = run.hyperlink.as_ref().map(|target| rels.hyperlink(target));
         for (i, t) in run.text.split('\n').enumerate() {
             if i > 0 {
                 out.paragraph_choice
@@ -660,7 +654,7 @@ pub(super) fn paragraphs(
             if !t.is_empty() {
                 out.paragraph_choice
                     .push(a::ParagraphChoice::Run(Box::new(a::Run {
-                        run_properties: Some(Box::new(run_properties(run, link.as_deref()))),
+                        run_properties: Some(Box::new(run_properties(run, link.as_ref()))),
                         text: t.into(),
                     })));
             }

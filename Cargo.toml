@@ -11,11 +11,13 @@ include = ["/src/**", "/build.rs", "/vendor/**", "/tests/**", "/tools/**", "/doc
 
 [dependencies]
 anyhow = "1"
+base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
 codex = "0.3"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+roxmltree = "0.21"
 typst = "=0.15.1"
 typst-layout = "=0.15.1"
 typst-kit = { version = "=0.15.1", features = ["embedded-fonts", "scan-fonts", "system-files", "system-downloader", "datetime"] }
@@ -35,8 +37,6 @@ unicode-segmentation = "=1.13.3"
 cc = "1"
 
 [dev-dependencies]
-roxmltree = "0.21"
-base64 = "0.22"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [profile.dev]

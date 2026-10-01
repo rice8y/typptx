@@ -2,7 +2,6 @@
 use crate::compiler::capture::{Capture, Kind};
 use crate::graphics::rgba;
 use crate::ir::*;
-use crate::lower::structure::string;
 use crate::lower::text::metrics::{is_raw_block, script_metrics};
 use crate::lower::text::validate_text_leaves;
 use anyhow::{Result, ensure};
@@ -119,13 +118,7 @@ pub(in crate::lower) fn paragraph(
                 .transpose()?,
             language: text.lang.as_str().to_string(),
         };
-        let hyperlink = leaf.ancestors.iter().rev().find_map(|&i| {
-            if capture.nodes[i].content.elem().name() == "link" {
-                string(&capture.nodes[i], "dest")
-            } else {
-                None
-            }
-        });
+        let hyperlink = capture.link_target(leaf).cloned();
         let mut run = Run {
             // Typst inserts discretionary hyphens during line breaking. They
             // must not pin the old wrapping into the editable PowerPoint text.

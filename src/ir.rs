@@ -63,7 +63,7 @@ pub struct TextStyle {
 pub struct Run {
     pub text: String,
     pub style: TextStyle,
-    pub hyperlink: Option<String>,
+    pub hyperlink: Option<LinkTarget>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub math: Option<MathExpr>,
     /// Keep an inline equation inline even when it occupies a whole paragraph.
@@ -349,6 +349,12 @@ pub struct Table {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Element {
+    /// A hyperlink owned by its object, so moving or deleting the object also
+    /// moves or removes its click target. This adds no PowerPoint shape.
+    Linked {
+        target: LinkTarget,
+        element: Box<Element>,
+    },
     /// A native PowerPoint group. Child objects remain independently editable.
     Group(ObjectGroup),
     Text(TextBlock),
@@ -403,6 +409,7 @@ pub struct ObjectGroup {
 impl Element {
     pub fn bounds(&self) -> Rect {
         match self {
+            Self::Linked { element, .. } => element.bounds(),
             Self::Group(g) => g.bounds,
             Self::Text(t) => t.bounds,
             Self::Table(t) => t.bounds,
@@ -434,11 +441,17 @@ impl Element {
     pub fn walk(&self) -> impl Iterator<Item = &Self> {
         let mut stack = vec![self];
         std::iter::from_fn(move || {
-            let next = stack.pop()?;
-            if let Self::Group(g) = next {
-                stack.extend(g.elements.iter().rev());
+            loop {
+                let next = stack.pop()?;
+                if let Self::Linked { element, .. } = next {
+                    stack.push(element);
+                    continue;
+                }
+                if let Self::Group(g) = next {
+                    stack.extend(g.elements.iter().rev());
+                }
+                return Some(next);
             }
-            Some(next)
         })
     }
 }
@@ -466,7 +479,7 @@ pub struct Slide {
     /// Plain text in the editable PowerPoint speaker notes body.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
-    /// Clickable regions for internal navigation, including links on diagrams.
+    /// Independent clickable regions with no drawable source object.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<SlideLink>,
 }

@@ -19,8 +19,12 @@ pub fn vector(
         visualize::ImageKind,
     };
     let svg = match image.kind() {
-        ImageKind::Svg(svg) => svg.tree().to_string(&usvg::WriteOptions::default()),
-        ImageKind::Pdf(_) => String::from_utf8(typst_svg::WebImage::new(image).data.to_vec())?,
+        ImageKind::Svg(svg) => {
+            super::svg::compatible(&svg.tree().to_string(&usvg::WriteOptions::default()))?
+        }
+        ImageKind::Pdf(_) => super::svg::compatible(&String::from_utf8(
+            typst_svg::WebImage::new(image).data.to_vec(),
+        )?)?,
         ImageKind::Raster(_) => unreachable!("raster images retain their original encoding"),
     };
     let size = Size::new(Abs::pt(bounds.width), Abs::pt(bounds.height));

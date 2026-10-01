@@ -309,22 +309,16 @@ fn picture_markers(
             "picture bullets need a single image marker"
         );
         let leaf = &capture.pages[page][id];
-        let FrameItem::Image(image, size, _) = &leaf.item else {
-            unreachable!()
-        };
-        let mut elements = crate::lower::pictures::native_image(leaf, image, *size, dpi)?;
-        let Some(Element::Picture {
+        let Element::Picture {
             bounds,
             extension,
             bytes,
             svg,
             clip: None,
             ..
-        }) = elements.pop()
+        } = crate::lower::pictures::picture_marker(leaf, dpi)?
         else {
-            anyhow::bail!(
-                "picture bullet requires an unclipped image without a separate transform"
-            );
+            unreachable!("picture markers are normalized to one picture");
         };
         markers.insert(
             label,
@@ -362,6 +356,10 @@ fn picture_markers(
         leaf.item = FrameItem::Text(text);
         leaf.position = (bounds.x, np.baseline.unwrap_or(bounds.bottom()));
         leaf.transform = Transform::identity();
+        // The crop is already inside the marker picture; the invisible layout
+        // placeholder must not impose that small clip on the list body.
+        leaf.clipped = false;
+        leaf.clips.clear();
     }
     Ok((prepared, markers))
 }

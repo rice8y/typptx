@@ -168,6 +168,9 @@ impl Leaf {
 
 #[derive(Default, Clone)]
 pub struct Capture {
+    /// Resolved targets indexed by the semantic link-marker node. Text and
+    /// pictures share the same source identity, including internal references.
+    pub(crate) link_targets: HashMap<usize, crate::ir::LinkTarget>,
     /// Equation nodes replaced by layout placeholders for SVG export.
     pub(crate) svg_math: HashSet<usize>,
     pub(crate) inline_objects: HashSet<(usize, usize)>,
@@ -204,7 +207,41 @@ impl Capture {
             });
             result.walk(&data.frame, Transform::identity(), &[], 0, page, None);
         }
+        for leaves in &result.pages {
+            for leaf in leaves {
+                let FrameItem::Link(dest, _) = &leaf.item else {
+                    continue;
+                };
+                let Some(&node) = leaf
+                    .ancestors
+                    .iter()
+                    .rev()
+                    .find(|&&i| result.nodes[i].content.elem().name() == "link-marker")
+                else {
+                    continue;
+                };
+                use typst::model::Destination;
+                let target = match dest {
+                    Destination::Url(url) => crate::ir::LinkTarget::Url(url.to_string()),
+                    Destination::Position(p) => crate::ir::LinkTarget::Slide(p.page.get()),
+                    Destination::Location(l) => {
+                        let Some(p) = document.introspector().position(*l) else {
+                            continue;
+                        };
+                        crate::ir::LinkTarget::Slide(p.page.get())
+                    }
+                };
+                result.link_targets.insert(node, target);
+            }
+        }
         result
+    }
+
+    pub(crate) fn link_target(&self, leaf: &Leaf) -> Option<&crate::ir::LinkTarget> {
+        leaf.ancestors
+            .iter()
+            .rev()
+            .find_map(|i| self.link_targets.get(i))
     }
 
     fn walk(

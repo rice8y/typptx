@@ -133,7 +133,7 @@ fn main() -> Result<()> {
         .flat_map(|s| s.elements.iter().flat_map(Element::walk))
     {
         match element {
-            Element::Group(_) => {}
+            Element::Linked { .. } | Element::Group(_) => {}
             Element::Text(_) => text += 1,
             Element::Table(_) => tables += 1,
             Element::Shape(_) => shapes += 1,

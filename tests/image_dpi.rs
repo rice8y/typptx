@@ -296,11 +296,7 @@ fn fallback_png_uses_requested_dpi_while_svg_is_unchanged() {
         "#set page(width:144pt,height:72pt,margin:10pt)\n#skew(ax:15deg)[Fallback]",
     );
     let mut svg = None;
-    for (dpi, expected) in [
-        (None, (288, 144)),
-        (Some(72), (144, 72)),
-        (Some(300), (600, 300)),
-    ] {
+    for dpi in [None, Some(72), Some(300)] {
         let p = lower::convert_with_options(
             &doc,
             &lower::Options {
@@ -313,11 +309,20 @@ fn fallback_png_uses_requested_dpi_while_svg_is_unchanged() {
         let mut count = 0;
         for e in &p.slides[0].elements {
             if let Element::Drawing {
-                png, svg: current, ..
+                png,
+                svg: current,
+                bounds,
             } = e
             {
                 count += 1;
                 let decoded = image::load_from_memory(png).unwrap();
+                // The fallback covers the failed text, not the whole page.
+                assert!(bounds.width < 100. && bounds.height < 30.);
+                let scale = f64::from(dpi.unwrap_or(144)) / 72.;
+                let expected = (
+                    (bounds.width * scale).round().max(1.) as u32,
+                    (bounds.height * scale).round().max(1.) as u32,
+                );
                 assert_eq!((decoded.width(), decoded.height()), expected);
                 if let Some(previous) = &svg {
                     assert_eq!(previous, current);

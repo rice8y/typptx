@@ -6,7 +6,8 @@ CeTZ and Typst drawing primitives become editable shapes. Imported images, inclu
 
 Typptx has the following features:
 
-- Native list numbering, picture bullets, and tables with merged cells
+- Native list numbering, picture bullets with rotation and cropping, and tables with merged cells
+- Links that follow text and objects when edited
 - Editable Office Math or Typst-rendered SVG equations
 - Font embedding with support for variable fonts
 
@@ -54,7 +55,7 @@ typptx slides.typ -o slides.pptx
 | `--input KEY=VALUE` | Typst `sys.inputs` value |
 | `--report PATH` | JSON diagnostics |
 | `--strict` | Fail on any diagnostic |
-| `--allow-image-fallback` | Export unsupported content as images |
+| `--allow-image-fallback` | Export only unsupported content as images and report each fallback |
 
 See `typptx --help` for all options.
 
