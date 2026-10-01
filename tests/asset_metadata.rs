@@ -81,6 +81,55 @@ Target <target>
 }
 
 #[test]
+fn link_runs_use_source_colors_in_paragraphs_and_table_cells() {
+    let p = compile(
+        r##"
+#link("https://example.com/")[Black link]
+#text(fill:rgb("#15803d"))[#link(<target>)[Green link]]
+#table(columns:1,[#text(fill:rgb("#b91c1c"))[#link("https://example.com/")[Red cell link]]])
+#pagebreak()
+Target <target>
+"##,
+    );
+    let mut z = zip::ZipArchive::new(Cursor::new(pptx::write(&p).unwrap())).unwrap();
+    let source = xml(&mut z, "ppt/slides/slide1.xml");
+    let d = roxmltree::Document::parse(&source).unwrap();
+    let mut colors = Vec::new();
+    for run in d.descendants().filter(|n| n.tag_name().name() == "r") {
+        let Some(link) = run
+            .descendants()
+            .find(|n| n.tag_name().name() == "hlinkClick")
+        else {
+            continue;
+        };
+        let override_color = link
+            .descendants()
+            .find(|n| {
+                n.has_tag_name((
+                    "http://schemas.microsoft.com/office/drawing/2018/hyperlinkcolor",
+                    "hlinkClr",
+                ))
+            })
+            .expect("text hyperlink retains its own color");
+        assert_eq!(override_color.attribute("val"), Some("tx"));
+        assert_eq!(
+            override_color.parent_element().unwrap().attribute("uri"),
+            Some("{A12FA001-AC4F-418D-AE19-62706E023703}")
+        );
+        colors.push(
+            run.descendants()
+                .find(|n| n.tag_name().name() == "srgbClr")
+                .unwrap()
+                .attribute("val")
+                .unwrap(),
+        );
+    }
+    // Narrow cells can split a link into several native runs.
+    colors.dedup();
+    assert_eq!(colors, ["000000", "15803D", "B91C1C"]);
+}
+
+#[test]
 fn clipped_rotated_links_keep_the_click_region_and_hidden_links_disappear() {
     let p = compile(
         r#"

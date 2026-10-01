@@ -269,7 +269,7 @@ pub(super) fn list(
     })
 }
 
-/// Replace imported-image labels with layout placeholders while the list's
+/// Replace graphical labels with layout placeholders while the list's
 /// paragraphs are measured. The actual marker is stored as a picture bullet.
 fn picture_markers(
     capture: &Capture,
@@ -293,22 +293,22 @@ fn picture_markers(
         let Some(np) = node.pages.get(&page) else {
             continue;
         };
-        let images: Vec<_> = np
+        let ids: Vec<_> = np
             .leaves
             .iter()
             .copied()
-            .filter(|&id| matches!(capture.pages[page][id].item, FrameItem::Image(..)))
+            .filter(|&id| capture.pages[page][id].is_drawable())
             .collect();
-        let Some(&id) = images.first() else { continue };
-        ensure!(
-            images.len() == 1
-                && np.leaves.iter().all(|&i| matches!(
-                    capture.pages[page][i].item,
-                    FrameItem::Image(..) | FrameItem::Link(..)
-                )),
-            "picture bullets need a single image marker"
-        );
-        let leaf = &capture.pages[page][id];
+        if !ids.iter().any(|&id| {
+            matches!(
+                capture.pages[page][id].item,
+                FrameItem::Image(..) | FrameItem::Shape(..)
+            )
+        }) {
+            continue;
+        }
+        let id = ids[0];
+        let leaves: Vec<_> = ids.iter().map(|&id| &capture.pages[page][id]).collect();
         let Element::Picture {
             bounds,
             extension,
@@ -316,7 +316,7 @@ fn picture_markers(
             svg,
             clip: None,
             ..
-        } = crate::lower::pictures::picture_marker(leaf, dpi)?
+        } = crate::lower::pictures::picture_marker(&leaves, dpi)?
         else {
             unreachable!("picture markers are normalized to one picture");
         };
@@ -343,6 +343,8 @@ fn picture_markers(
             .map(|(_, t)| t.clone())
             .unwrap_or_else(crate::math::svg::empty_text);
         text.text = "\u{200b}".into();
+        text.stroke = None;
+        text.fill = typst::visualize::Paint::Solid(typst::visualize::Color::BLACK);
         text.glyphs = vec![Glyph {
             id: 0,
             x_advance: Em::new(bounds.width / text.size.to_pt()),
@@ -360,6 +362,17 @@ fn picture_markers(
         // placeholder must not impose that small clip on the list body.
         leaf.clipped = false;
         leaf.clips.clear();
+        // The marker's internal equations/styles are now part of its picture.
+        // Keep only the label's ancestry for native paragraph measurement.
+        if let Some(at) = leaf.ancestors.iter().position(|&i| i == label) {
+            leaf.ancestors.truncate(at + 1);
+        }
+        let removed: HashSet<_> = ids.into_iter().skip(1).collect();
+        for node in &mut prepared.to_mut().nodes {
+            if let Some(np) = node.pages.get_mut(&page) {
+                np.leaves.retain(|id| !removed.contains(id));
+            }
+        }
     }
     Ok((prepared, markers))
 }

@@ -53,9 +53,27 @@ macro_rules! character_properties {
     }};
 }
 pub(super) fn run_properties(run: &Run, link: Option<&a::HyperlinkOnClick>) -> a::RunProperties {
+    let link = link.cloned().map(|mut link| {
+        use ooxmlsdk::{common::XmlNamespace, namespaces::XmlKnownNamespace, schemas::ahyp};
+        // A run's solid/gradient fill alone does not override the theme's
+        // hyperlink color. Explicitly retain the source text fill in Office.
+        link.hyperlink_extension_list = Some(a::HyperlinkExtensionList {
+            hyperlink_extension: vec![a::HyperlinkExtension {
+                uri: "{A12FA001-AC4F-418D-AE19-62706E023703}".into(),
+                hyperlink_extension_choice: Some(a::HyperlinkExtensionChoice::HyperlinkColor(
+                    ahyp::HyperlinkColor {
+                        xmlns: vec![XmlNamespace::known(XmlKnownNamespace::Ahyp)],
+                        val: ahyp::HyperlinkColorEnum::Tx,
+                    },
+                )),
+            }],
+            ..Default::default()
+        });
+        link
+    });
     character_properties!(
         run,
-        link,
+        link.as_ref(),
         RunProperties,
         run_properties_choice1,
         RunPropertiesChoice
@@ -719,7 +737,18 @@ pub(super) fn textbox(block: &TextBlock, id: usize, rels: &mut Relationships) ->
             paragraph: block
                 .paragraphs
                 .iter()
-                .flat_map(|p| paragraphs(p, rels, block.bounds.x, block.bounds.right()))
+                .flat_map(|p| {
+                    // Tight list boxes need the same advance rounding as cells
+                    // so Office does not introduce an extra soft line break.
+                    let fitted;
+                    let p = if block.wrap && block.role == "list" {
+                        fitted = adapt_advances(p, Some(block.bounds.width));
+                        &fitted
+                    } else {
+                        p
+                    };
+                    paragraphs(p, rels, block.bounds.x, block.bounds.right())
+                })
                 .map(|mut p| {
                     if block.role == "equation" {
                         // Fixed text-line heights make a tall Office equation

@@ -61,8 +61,7 @@ fn only_failed_structures_are_drawings_and_each_failure_is_reported() {
     let p = convert(
         r#"
 #rect(width:100pt,height:20pt,fill:blue)
-#set list(marker:rect(width:8pt,height:8pt,fill:red))
-- Unsupported marker body
+- Unsupported body #rect(width:8pt,height:8pt,fill:red)
 #image("icon.svg",width:40pt,alt:"Keep description")
 #table(columns:1,[Editable cell])
 #skew(ax:20deg)[Unsupported shear]

@@ -82,17 +82,17 @@ fn cli_reports_unicode_columns_and_keeps_existing_outputs_on_failure() {
 }
 
 #[test]
-fn graphical_list_markers_keep_their_call_site() {
+fn unsupported_graphics_in_list_bodies_keep_their_call_site() {
     let dir = tempfile::tempdir().unwrap();
     let input = dir.path().join("main.typ");
     fs::write(
         &input,
-        "#set list(marker: rect(width:4pt,height:4pt))\n- First\n- Second",
+        "// source location\n- First #rect(width:4pt,height:4pt)\n- Second",
     )
     .unwrap();
     let diagnostics = convert(&input, dir.path(), lower::Options::default());
     assert!(!diagnostics.is_empty());
-    assert_eq!(diagnostics[0].source.as_ref().unwrap().line, 1);
+    assert_eq!(diagnostics[0].source.as_ref().unwrap().line, 2);
 }
 
 #[test]

@@ -118,69 +118,80 @@ pub(super) fn fallback(
 
 /// Picture bullets have no independent transform or crop in DrawingML. Apply
 /// those operations inside the marker's SVG while keeping the list native.
-pub(super) fn picture_marker(leaf: &Leaf, dpi: Option<u32>) -> Result<Element> {
+pub(super) fn picture_marker(leaves: &[&Leaf], dpi: Option<u32>) -> Result<Element> {
     use typst::{
         foundations::{Content, Smart},
         layout::{Abs, Frame, GroupItem, Point, Size},
         visualize::{Curve, CurveItem},
     };
-    let FrameItem::Image(image, size, _) = &leaf.item else {
-        anyhow::bail!("picture marker needs an image");
-    };
-    if leaf.plain_transform() {
+    if let [leaf] = leaves
+        && let FrameItem::Image(image, size, _) = &leaf.item
+        && leaf.plain_transform()
+    {
         return native_image(leaf, image, *size, dpi)?
             .pop()
             .ok_or_else(|| anyhow!("empty picture marker"));
     }
-    let t = leaf.transform;
-    let point = |x: f64, y: f64| {
-        [
-            leaf.position.0 + t.sx.get() * x + t.kx.get() * y,
-            leaf.position.1 + t.ky.get() * x + t.sy.get() * y,
-        ]
-    };
-    let mut visible = vec![vec![
-        point(0., 0.),
-        point(size.x.to_pt(), 0.),
-        point(size.x.to_pt(), size.y.to_pt()),
-        point(0., size.y.to_pt()),
-    ]];
-    for clip in &leaf.clips {
-        visible = crate::geometry::paths::intersect(&visible, clip);
-    }
-    let path = crate::geometry::paths::path(&visible)
-        .ok_or_else(|| anyhow!("picture marker is fully clipped"))?;
-    let bounds = crate::geometry::paths::shape(&path, [0., 0.], None)
-        .ok_or_else(|| anyhow!("empty picture marker"))?
-        .bounds;
-    let mut child = Frame::hard(*size);
-    child.push(Point::zero(), leaf.item.clone());
-    let mut group = GroupItem::new(child);
-    group.transform = leaf.transform;
-    group.transform.tx = Abs::zero();
-    group.transform.ty = Abs::zero();
-    let mut frame = Frame::hard(Size::new(Abs::pt(bounds.width), Abs::pt(bounds.height)));
-    frame.push(
-        Point::new(
-            Abs::pt(leaf.position.0 - bounds.x),
-            Abs::pt(leaf.position.1 - bounds.y),
-        ),
-        FrameItem::Group(group),
-    );
-    for clip in &leaf.clips {
-        let mut curve = Curve::new();
-        for contour in clip {
-            for (i, p) in contour.iter().enumerate() {
-                let p = Point::new(Abs::pt(p[0] - bounds.x), Abs::pt(p[1] - bounds.y));
-                curve.0.push(if i == 0 {
-                    CurveItem::Move(p)
-                } else {
-                    CurveItem::Line(p)
-                });
+    let bounds = leaves
+        .iter()
+        .filter_map(|leaf| {
+            let b = leaf.ink_bounds()?;
+            let mut visible = vec![vec![
+                [b.x, b.y],
+                [b.right(), b.y],
+                [b.right(), b.bottom()],
+                [b.x, b.bottom()],
+            ]];
+            for clip in &leaf.clips {
+                visible = crate::geometry::paths::intersect(&visible, clip);
             }
-            curve.0.push(CurveItem::Close);
+            let path = crate::geometry::paths::path(&visible)?;
+            Some(crate::geometry::paths::shape(&path, [0., 0.], None)?.bounds)
+        })
+        .reduce(Rect::union)
+        .ok_or_else(|| anyhow!("picture marker is empty or fully clipped"))?;
+    let size = Size::new(Abs::pt(bounds.width), Abs::pt(bounds.height));
+    let mut frame = Frame::hard(size);
+    for leaf in leaves {
+        // Restore each source item's hard paint frame. Parent-relative paints
+        // must retain their original coordinates inside a compound marker.
+        let paint = &leaf.paint_geometry;
+        let mut parent = Frame::hard(Size::new(Abs::pt(paint.size.0), Abs::pt(paint.size.1)));
+        let mut item = Frame::soft(Size::zero());
+        item.push(Point::zero(), leaf.item.clone());
+        let mut group = GroupItem::new(item);
+        let mut transform = leaf.transform;
+        transform.tx = Abs::pt(leaf.position.0);
+        transform.ty = Abs::pt(leaf.position.1);
+        group.transform = paint
+            .transform
+            .invert()
+            .ok_or_else(|| anyhow!("singular picture marker transform"))?
+            .pre_concat(transform);
+        parent.push(Point::zero(), FrameItem::Group(group));
+        let mut group = GroupItem::new(parent);
+        group.transform = paint.transform;
+        let mut piece = Frame::soft(size);
+        piece.push(
+            Point::new(Abs::pt(-bounds.x), Abs::pt(-bounds.y)),
+            FrameItem::Group(group),
+        );
+        for clip in &leaf.clips {
+            let mut curve = Curve::new();
+            for contour in clip {
+                for (i, p) in contour.iter().enumerate() {
+                    let p = Point::new(Abs::pt(p[0] - bounds.x), Abs::pt(p[1] - bounds.y));
+                    curve.0.push(if i == 0 {
+                        CurveItem::Move(p)
+                    } else {
+                        CurveItem::Line(p)
+                    });
+                }
+                curve.0.push(CurveItem::Close);
+            }
+            piece.clip(curve);
         }
-        frame.clip(curve);
+        frame.push_frame(Point::zero(), piece);
     }
     let page = typst_layout::Page {
         frame,
@@ -194,7 +205,7 @@ pub(super) fn picture_marker(leaf: &Leaf, dpi: Option<u32>) -> Result<Element> {
         bounds,
         clip: None,
         extension: "png".into(),
-        alt: image.alt().map(str::to_owned),
+        alt: None,
         svg: Some(crate::assets::svg::page(&page)?),
         bytes: crate::assets::images::render_fallback(&page, dpi)?,
     })

@@ -28,6 +28,28 @@ Export `powerpoint.pdf` with the desktop PowerPoint local PDF exporter. On macOS
 
 ### Fixture manifest
 
+`links-markers.typ` and `links-markers.json` cover source hyperlink colors and
+graphical picture bullets. Build that fixture with `--strict` and use its JSON
+manifest with the same Python checker and Windows runner. The declared native
+cell edit changes `EDIT ME` to `EDITED` on slide 1.
+Table PDF regions check line counts because Office can omit whitespace glyphs
+while preserving their visible advances. Exact cell text is checked in the
+saved PPTX package.
+
+After saving and reopening, also inspect these details in desktop PowerPoint:
+
+- Slide 1: black, green and red link text keeps its source color. Office may add
+  its native hyperlink underline. The green link goes to slide 2.
+- Slide 2: square, image-plus-text and circle-plus-text markers remain visible.
+  Edit a list item and insert another item to check native bullet behavior,
+  including the list inside the table cell.
+- Slide 3: rotated, cropped and equation-containing markers remain visible;
+  their body text remains editable.
+
+The PDF region checks verify text and wrapping; the visual checks above are
+still required for colors and artwork. Record Windows results only after
+running them on a Windows desktop with PowerPoint installed.
+
 `tests/fixtures/powerpoint/text-layout.json` is a complete example. Slide/table/row/column indexes are one-based. Table order follows native shape order, including groups. All dimensions are points. Region boxes are `[left, top, right, bottom]` in PDF page coordinates. Regions must include the entire area where an unwanted wrapped line could appear. Use `content_box_pt` for a smaller permitted text box inside that search region.
 
 `lines` checks extracted text and wrapping; `line_count` checks only the number of lines. `first_line_x_pt` checks glyph origins against source measurements. `ignore_trailing_space_origins` excludes invisible trailing spaces from that check while preserving them in the PDF observation. `min_font_pt` can exclude nearby small labels. Plain left-to-right text is grouped by glyph top coordinate (`line_tolerance_pt`, default 1.5). Do not apply that line grouping to mixed superscripts, equations, combining marks, right-to-left or vertical text; give plain text its own region or use a separately reviewed visual check. A change in PDF glyph mapping requires review rather than a silently accepted baseline update.

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "links-markers.typ",
+  "purpose": "Source hyperlink colors, graphical and compound picture bullets, transformed markers, and native table editing.",
+  "slides": 3,
+  "slide_size_pt": [600, 400],
+  "package": {"native_tables": 3, "pictures": 0},
+  "regions": [
+    {"id":"black-link","slide":1,"box_pt":[30,78,280,120],"lines":["Black link"]},
+    {"id":"green-link","slide":1,"box_pt":[30,122,320,163],"lines":["Green internal link"]},
+    {"id":"red-link","slide":1,"box_pt":[35,181,285,220],"line_count":1},
+    {"id":"edit-cell","slide":1,"box_pt":[35,251,285,290],"line_count":1},
+    {"id":"square-list","slide":2,"box_pt":[45,80,570,142],"line_count":2},
+    {"id":"compound-list","slide":2,"box_pt":[65,150,570,210],"line_count":2},
+    {"id":"cell-list","slide":2,"box_pt":[60,238,550,290],"line_count":2}
+  ],
+  "edits": [
+    {"slide":1,"table":2,"row":1,"column":1,"before":"EDIT ME","after":"EDITED","region":"edit-cell"}
+  ]
+}

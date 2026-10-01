@@ -26,6 +26,9 @@ pub(super) fn table(
     ensure!(
         np.leaves.iter().all(|&id| {
             let leaf = &capture.pages[page][id];
+            if capture.nearest(leaf, Kind::Label).is_some() {
+                return true; // Marker transforms are baked into picture bullets.
+            }
             // Equation decorations (e.g. diagonal cancellation strokes)
             // are rebuilt by Office Math, not emitted as cell graphics.
             (matches!(leaf.item, FrameItem::Shape(..))
@@ -47,10 +50,20 @@ pub(super) fn table(
         let column_span = placement.column_span;
         let row_span = placement.row_span;
         ensure!(column_span > 0 && row_span > 0, "invalid table cell span");
+        let body_ids: Vec<_> = cp
+            .leaves
+            .iter()
+            .copied()
+            .filter(|&id| {
+                capture
+                    .nearest(&capture.pages[page][id], Kind::Label)
+                    .is_none()
+            })
+            .collect();
         let complex = capture.descendants(cell_idx).iter().any(|&n| {
             capture.nodes[n].kind == Kind::Table
                 || capture.nodes[n].content.is::<typst::layout::GridElem>()
-        }) || validate_text_leaves(capture, page, &cp.leaves).is_err();
+        }) || validate_text_leaves(capture, page, &body_ids).is_err();
         if complex {
             children.extend(container(capture, cell_idx, page, options)?);
         }
@@ -101,7 +114,7 @@ pub(super) fn table(
             parts.insert(ids[0], (list.paragraphs, first, last));
         }
         if !complex {
-            validate_text_leaves(capture, page, &cp.leaves)?;
+            validate_text_leaves(capture, page, &body_ids)?;
         }
         if !text_ids.is_empty() {
             let mut groups: Vec<(Option<usize>, Vec<usize>)> = Vec::new();

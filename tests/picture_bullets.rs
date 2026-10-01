@@ -215,3 +215,133 @@ fn rotated_and_cropped_markers_are_baked_into_one_vector_bullet() {
         package(&p, 2);
     }
 }
+
+#[test]
+fn graphical_and_compound_markers_keep_one_native_list_with_only_body_text() {
+    for marker in [
+        "rect(width:8pt,height:8pt,fill:red,stroke:none)",
+        "[#image(\"icon.svg\",width:12pt)#h(2pt)#text(fill:blue)[+]]",
+        "[#image(\"icon.svg\",width:12pt)#image(\"icon.png\",width:12pt)]",
+        "circle(radius:8pt,fill:green)[#align(center+horizon)[+]]",
+        "rotate(25deg,reflow:true)[#rect(width:8pt,height:8pt,fill:red)#h(2pt)+]",
+        "box(width:12pt,height:8pt,clip:true)[#image(\"icon.svg\",width:20pt)+]",
+        "[#rect(width:8pt,height:8pt,fill:red)#h(2pt)$x^2$]",
+    ] {
+        let p = compile(&format!("#set list(marker:{marker})\n- First\n- Second"));
+        assert_eq!(
+            paragraphs(&p).iter().map(|p| text(p)).collect::<Vec<_>>(),
+            ["First", "Second"]
+        );
+        for paragraph in paragraphs(&p) {
+            let Some(Bullet::Picture {
+                bytes,
+                svg: Some(svg),
+                ..
+            }) = &paragraph.bullet
+            else {
+                panic!("expected picture marker for {marker}");
+            };
+            assert!(
+                image::load_from_memory(bytes)
+                    .unwrap()
+                    .to_rgba8()
+                    .pixels()
+                    .any(|p| p.0[3] > 0)
+            );
+            assert!(
+                !svg.contains("<text"),
+                "marker fonts must travel inside the picture"
+            );
+        }
+        assert_eq!(
+            p.slides[0]
+                .elements
+                .iter()
+                .flat_map(Element::walk)
+                .filter(|e| matches!(e, Element::Text(t) if t.role == "list" && t.wrap))
+                .count(),
+            1
+        );
+        package(&p, 2);
+    }
+}
+
+#[test]
+fn compound_markers_keep_empty_nested_and_table_items_native() {
+    let p = compile(
+        r#"
+#set list(marker:([#image("icon.svg",width:12pt)+],circle(radius:3pt,fill:blue)))
+- Parent
+  - Nested
+-
+
+#pagebreak()
+#table(columns:1,[
+- Cell one
+- Cell two
+])
+"#,
+    );
+    let ps = paragraphs(&p);
+    assert_eq!(
+        ps.iter()
+            .filter(|p| matches!(p.bullet, Some(Bullet::Picture { .. })))
+            .count(),
+        5
+    );
+    assert_eq!(ps[1].level, 1);
+    assert!(
+        text(ps[2])
+            .chars()
+            .all(|c| c == '\u{200b}' || c.is_whitespace())
+    );
+    assert!(
+        p.slides
+            .iter()
+            .flat_map(|s| &s.elements)
+            .flat_map(Element::walk)
+            .any(|e| matches!(e, Element::Table(_)))
+    );
+    package(&p, 5);
+}
+
+#[test]
+fn transformed_compound_markers_stay_inside_native_table_cells() {
+    let p = compile(
+        r#"
+#set list(marker:rotate(20deg,reflow:true,box(width:24pt)[#image("icon.svg",width:12pt)+]))
+#table(columns:1,inset:10pt,[
+- Cell one
+- Cell two
+])
+"#,
+    );
+    let tables: Vec<_> = p
+        .slides
+        .iter()
+        .flat_map(|s| &s.elements)
+        .flat_map(Element::walk)
+        .filter_map(|e| match e {
+            Element::Table(t) => Some(t),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(tables.len(), 1);
+    let ps = &tables[0].cells[0].paragraphs;
+    assert_eq!(
+        ps.iter().map(text).collect::<Vec<_>>(),
+        ["Cell one", "Cell two"]
+    );
+    assert!(
+        ps.iter()
+            .all(|p| matches!(p.bullet, Some(Bullet::Picture { .. })))
+    );
+    assert!(
+        !p.slides
+            .iter()
+            .flat_map(|s| &s.elements)
+            .flat_map(Element::walk)
+            .any(|e| matches!(e, Element::Text(_)))
+    );
+    package(&p, 2);
+}
