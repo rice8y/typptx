@@ -2,6 +2,12 @@
 
 Typptx is a command-line tool that converts Typst to PowerPoint with editable text, lists, tables, equations, and vector shapes.
 
+Typptx has the following features:
+
+- Native list numbering and tables with merged cells
+- Editable Office Math or Typst-rendered SVG equations
+- Font embedding, including variable font instances
+
 ## Installation
 
 ### From crates.io
