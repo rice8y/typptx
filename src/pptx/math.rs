@@ -327,6 +327,22 @@ fn expression(expr: &MathExpr, run: &Run, style: &MathStyle, in_array: bool) -> 
             })),
             base: vec![*base(child(body))],
         })),
+        M::DelimitedParts {
+            open,
+            close,
+            separator,
+            parts,
+        } => Node::Delimiter(Box::new(m::Delimiter {
+            delimiter_properties: Some(Box::new(m::DelimiterProperties {
+                begin_char: Some(m::BeginChar { val: open.clone() }),
+                end_char: Some(m::EndChar { val: close.clone() }),
+                separator_char: Some(m::SeparatorChar {
+                    val: separator.clone(),
+                }),
+                ..Default::default()
+            })),
+            base: parts.iter().map(|part| *base(child(part))).collect(),
+        })),
         M::Matrix {
             rows,
             alignment,

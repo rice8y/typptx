@@ -29,17 +29,20 @@ fn structure_inner(
     options: &Options,
 ) -> Result<Element> {
     let kind = capture.nodes[idx].kind;
+    let has_table = kind == Kind::Table
+        || capture
+            .descendants(idx)
+            .iter()
+            .any(|&i| capture.nodes[i].kind == Kind::Table);
     let lower = |capture: &Capture| match kind {
         Kind::Table => table(capture, idx, page, options),
         Kind::Bibliography => bibliography(capture, idx, page).map(Element::Text),
         Kind::List | Kind::Enum => list(capture, idx, page, options),
         _ => super::text::with_shapes(capture, idx, page, ids, options),
     };
-    if let Some(first) = ids
-        .iter()
-        .map(|&i| &capture.pages[page][i])
-        .find(|l| matches!(l.item, FrameItem::Text(_)))
-    {
+    if let Some(first) = ids.iter().map(|&i| &capture.pages[page][i]).find(|l| {
+        matches!(l.item, FrameItem::Text(_)) || has_table && matches!(l.item, FrameItem::Shape(..))
+    }) {
         let t = first.transform;
         if (t.sx.get() - 1.).abs() > 1e-6
             || (t.sy.get() - 1.).abs() > 1e-6
@@ -65,18 +68,27 @@ fn structure_inner(
                 let mut ts = t;
                 ts.tx = Abs::zero();
                 ts.ty = Abs::zero();
-                let normalized = capture
+                let mut normalized = capture
                     .untransformed(page, ts)
                     .ok_or_else(|| anyhow!("singular text transform"))?;
-                let element = lower(&normalized)?;
-                ensure!(
-                    !element.walk().any(|e| matches!(e, Element::Table(_)))
-                        || (t.kx.get().abs() < 1e-6
-                            && t.ky.get().abs() < 1e-6
-                            && t.sx.get() > 0.
-                            && t.sy.get() > 0.),
-                    "PowerPoint does not apply rotation or reflection to native tables"
-                );
+                normalized.grouped_tables |= t.kx.get().abs() >= 1e-6
+                    || t.ky.get().abs() >= 1e-6
+                    || t.sx.get() < 0.
+                    || t.sy.get() < 0.;
+                let reflected = t.sx.get() * t.sy.get() - t.kx.get() * t.ky.get() < 0.;
+                if reflected && has_table {
+                    ensure!(
+                        t.sx.get() < 0.
+                            && t.sy.get() > 0.
+                            && t.kx.get().abs() < 1e-6
+                            && t.ky.get().abs() < 1e-6,
+                        "editable tables only support horizontal reflection without rotation"
+                    );
+                }
+                let mut element = lower(&normalized)?;
+                if reflected && has_table {
+                    mirror_table_text(&mut element)?;
+                }
                 return Ok(crate::geometry::transforms::apply(
                     vec![element],
                     [t.sx.get(), t.ky.get(), t.kx.get(), t.sy.get(), 0., 0.],
@@ -85,6 +97,47 @@ fn structure_inner(
         }
     }
     lower(capture)
+}
+
+fn mirror_table_text(element: &mut Element) -> Result<()> {
+    match element {
+        Element::Text(text) => {
+            ensure!(
+                text.vertical.is_none()
+                    && text.paragraphs.iter().all(|p| p.lines.is_empty()
+                        && p.tab_stops.is_empty()
+                        && p.bullet.is_none()
+                        && p.indent == 0.
+                        && p.runs.iter().all(|r| r.math.is_none())
+                        && matches!(p.alignment.as_str(), "l" | "r" | "ctr")),
+                "reflected tables require simple text cells"
+            );
+            // Office reflects the box but keeps its text upright and aligned
+            // to the original edge. Reverse the edge and mirror the glyphs.
+            text.mirror_x = !text.mirror_x;
+            for p in &mut text.paragraphs {
+                std::mem::swap(&mut p.margin_left, &mut p.margin_right);
+                p.alignment = match p.alignment.as_str() {
+                    "l" => "r",
+                    "r" => "l",
+                    _ => "ctr",
+                }
+                .into();
+            }
+        }
+        Element::Group(group) => {
+            ensure!(
+                group.rotation.abs() < 1e-6 && !group.flip_x && !group.flip_y,
+                "nested transforms in reflected tables require a drawing"
+            );
+            for child in &mut group.elements {
+                mirror_table_text(child)?;
+            }
+        }
+        Element::Linked { element, .. } => mirror_table_text(element)?,
+        _ => {}
+    }
+    Ok(())
 }
 
 pub(super) fn parent_structure(capture: &Capture, idx: usize) -> Option<usize> {

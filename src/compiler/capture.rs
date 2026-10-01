@@ -174,6 +174,9 @@ struct CellContinuation {
 
 #[derive(Default, Clone)]
 pub struct Capture {
+    /// An enclosing rotation/reflection requires tables to use native text and
+    /// shapes, because PowerPoint ignores those transforms on graphic frames.
+    pub(crate) grouped_tables: bool,
     /// Resolved targets indexed by the semantic link-marker node. Text and
     /// pictures share the same source identity, including internal references.
     pub(crate) link_targets: HashMap<usize, crate::ir::LinkTarget>,

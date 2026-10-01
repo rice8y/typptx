@@ -53,6 +53,14 @@ state as a printable page, also export with `--animations slides`.
 
 ### Fixture manifest
 
+`limited-native.typ` covers rotated tables (including nested tables inside a
+list), simple horizontal reflections, middle equation delimiters, and
+`overshell`. Build it with `--strict`. Tables on slides 1–3 are groups of
+editable text and borders. On slide 2, change `EDITME` to `EDITED`, save a copy,
+close and reopen it, and check that its position and mirrored glyphs survive.
+On slide 4, check that the middle bars stretch to the fractions and that the
+shell and its annotation remain above `x+y`.
+
 `links-markers.typ` and `links-markers.json` cover source hyperlink colors and
 graphical picture bullets. Build that fixture with `--strict` and use its JSON
 manifest with the same Python checker and Windows runner. The declared native

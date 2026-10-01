@@ -96,6 +96,7 @@ pub(super) fn bibliography(capture: &Capture, idx: usize, page: usize) -> Result
     let first = measured.first().unwrap();
     let last = measured.last().unwrap();
     Ok(TextBlock {
+        mirror_x: false,
         vertical: None,
         source_id: node.id(),
         role: "bibliography".into(),

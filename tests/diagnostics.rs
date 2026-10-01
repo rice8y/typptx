@@ -96,7 +96,7 @@ fn unsupported_graphics_in_list_bodies_keep_their_call_site() {
 }
 
 #[test]
-fn rotated_native_tables_inside_lists_report_office_limitations() {
+fn rotated_tables_inside_lists_use_editable_groups() {
     let dir = tempfile::tempdir().unwrap();
     let input = dir.path().join("main.typ");
     fs::write(
@@ -105,12 +105,7 @@ fn rotated_native_tables_inside_lists_report_office_limitations() {
     )
     .unwrap();
     let diagnostics = convert(&input, dir.path(), lower::Options::default());
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("rotation or reflection to native tables")
-    );
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
 
 #[test]

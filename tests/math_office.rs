@@ -431,6 +431,8 @@ fn unsupported_layouts_are_rejected_and_have_explicit_svg_support() {
             "layout information from Office",
         ),
         ("cancel(x,stroke:#red)", "layout information from Office"),
+        ("lr([a mid(|) b mid(:) c])", "different middle delimiters"),
+        ("undershell(a+b)", "unsupported native math"),
     ] {
         let dir = tempfile::tempdir().unwrap();
         let input = dir.path().join("math.typ");
@@ -610,4 +612,63 @@ fn lower_annotations_and_cancellation_remain_office_math() {
             .count(),
         1
     );
+}
+
+#[test]
+fn middle_delimiters_share_height_and_keep_nested_groups() {
+    let xml = convert(
+        r#"$ { x mid(|) frac(a,b) > 0 } $
+        $ lr([a mid(|) frac(b,c) mid(|) d]) $
+        $ lr((a mid(|) lr([b mid(:) frac(c,d)]))) $"#,
+    );
+    let doc = roxmltree::Document::parse(&xml).unwrap();
+    let delimiters: Vec<_> = doc
+        .descendants()
+        .filter(|n| n.has_tag_name((MATH, "d")))
+        .collect();
+    assert_eq!(delimiters.len(), 4);
+    for (delimiter, separator, count) in [
+        (delimiters[0], "|", 2),
+        (delimiters[1], "|", 3),
+        (delimiters[2], "|", 2),
+        (delimiters[3], ":", 2),
+    ] {
+        assert!(
+            delimiter
+                .children()
+                .find(|n| n.has_tag_name((MATH, "dPr")))
+                .unwrap()
+                .children()
+                .any(|n| n.has_tag_name((MATH, "sepChr"))
+                    && n.attribute((MATH, "val")) == Some(separator))
+        );
+        assert_eq!(
+            delimiter
+                .children()
+                .filter(|n| n.has_tag_name((MATH, "e")))
+                .count(),
+            count
+        );
+    }
+    assert!(delimiters[3].ancestors().any(|n| n == delimiters[2]));
+}
+
+#[test]
+fn overshell_is_an_editable_group_with_an_optional_annotation() {
+    let xml = convert("$ overshell(a+b) + overshell(frac(x,y), n) $");
+    let doc = roxmltree::Document::parse(&xml).unwrap();
+    let groups: Vec<_> = doc
+        .descendants()
+        .filter(|n| n.has_tag_name((MATH, "groupChr")))
+        .collect();
+    assert_eq!(groups.len(), 2);
+    for group in groups {
+        assert!(
+            group
+                .descendants()
+                .any(|n| n.has_tag_name((MATH, "chr")) && n.attribute((MATH, "val")) == Some("⏠"))
+        );
+        assert!(group.descendants().any(|n| n.has_tag_name((MATH, "pos")) && n.attribute((MATH, "val")) == Some("top")));
+    }
+    assert!(doc.descendants().any(|n| n.has_tag_name((MATH, "limUpp"))));
 }

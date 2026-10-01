@@ -318,6 +318,7 @@ pub(super) fn convert(
                 .first()
                 .is_some_and(|p| p.level.is_rtl());
         let mut element = Element::Text(TextBlock {
+            mirror_x: false,
             vertical: vertical.then(|| if upright { "eaVert" } else { "vert" }.into()),
             clip: None,
             source_id: format!("svg:{}:{idx}", text.id()),

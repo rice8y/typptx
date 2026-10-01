@@ -54,6 +54,7 @@ pub(super) fn native_fragment(capture: &Capture, page: usize, ids: &[usize]) -> 
     }
     p.paragraph.runs = runs;
     Ok(TextBlock {
+        mirror_x: false,
         vertical: None,
         source_id: format!("display-list:{}", ids[0]),
         clip: text_clip(capture, page, ids)?,
@@ -193,6 +194,7 @@ pub(super) fn text_block_ids(
     {
         p.paragraph.alignment = "ctr".into();
         return Ok(TextBlock {
+            mirror_x: false,
             vertical: None,
             source_id: node.id(),
             clip: text_clip(capture, page, ids)?,
@@ -258,6 +260,7 @@ pub(super) fn text_block_ids(
     let intrinsic_single_line = (p.last_baseline - p.first_baseline).abs() < 0.1
         && (region.width - (p.right - p.x)).abs() < 0.1;
     Ok(TextBlock {
+        mirror_x: false,
         vertical: None,
         source_id: node.id(),
         clip: text_clip(capture, page, ids)?,

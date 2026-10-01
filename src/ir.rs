@@ -150,6 +150,13 @@ pub enum MathExpr {
         close: String,
         body: Box<MathExpr>,
     },
+    /// Delimited expressions separated by a shared, vertically stretching glyph.
+    DelimitedParts {
+        open: String,
+        close: String,
+        separator: String,
+        parts: Vec<MathExpr>,
+    },
     Matrix {
         rows: Vec<Vec<MathExpr>>,
         alignment: String,
@@ -303,6 +310,9 @@ pub struct ParagraphLine {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TextBlock {
+    /// Mirror the glyphs as well as their enclosing horizontal reflection.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub mirror_x: bool,
     /// DrawingML text orientation; absent for ordinary horizontal paragraphs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vertical: Option<String>,

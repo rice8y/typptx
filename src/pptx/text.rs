@@ -709,6 +709,26 @@ pub(super) fn textbox(block: &TextBlock, id: usize, rels: &mut Relationships) ->
         }),
         text_body: Some(Box::new(p::TextBody {
             body_properties: Box::new(a::BodyProperties {
+                // A group flip alone does not mirror PowerPoint text glyphs.
+                scene3_d_type: block.mirror_x.then(|| {
+                    Box::new(a::Scene3DType {
+                        camera: Box::new(a::Camera {
+                            preset: enumeration("orthographicFront"),
+                            rotation: Some(a::Rotation {
+                                latitude: 0,
+                                longitude: 10800000,
+                                revolution: 0,
+                            }),
+                            ..Default::default()
+                        }),
+                        light_rig: Box::new(a::LightRig {
+                            rig: enumeration("threePt"),
+                            direction: enumeration("t"),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    })
+                }),
                 vertical: block.vertical.as_deref().map(enumeration),
                 wrap: Some(enumeration(if block.wrap { "square" } else { "none" })),
                 left_inset: Some(coordinate32(block.bounds.x - bounds.x)),

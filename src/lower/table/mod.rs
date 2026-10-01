@@ -21,6 +21,9 @@ pub(super) fn table(
     page: usize,
     options: &Options,
 ) -> Result<Element> {
+    if capture.grouped_tables {
+        return container(capture, idx, page, options).map(Element::group);
+    }
     let node = &capture.nodes[idx];
     let np = &node.pages[&page];
     ensure!(

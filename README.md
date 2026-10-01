@@ -66,7 +66,8 @@ See `typptx --help` for all options.
 - Layout may differ from Typst; all pages must have the same dimensions.
 - Centered or complex lists use separate text boxes without automatic renumbering. Complex table cells may also use separate objects.
 - Inline graphics and highlights do not follow text edits.
-- Rotated or reflected tables, text on paths, and some equations require image fallback, which loses editability. Enable it with `--allow-image-fallback`.
+- Rotated and simple horizontally reflected tables use editable text and shapes instead of table cells.
+- Other table transforms and some equations require image fallback. Enable it with `--allow-image-fallback`.
 - Fonts that cannot be embedded must be installed locally.
 - Animations use discrete states. Changed content uses separate objects that overlap in editing and print views and must be edited independently.
 - Links target slides, not individual animation steps.

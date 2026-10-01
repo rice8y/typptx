@@ -349,6 +349,7 @@ fn list_blocks(
                     centered_markers.push((
                         label_page.leaves[0],
                         TextBlock {
+                            mirror_x: false,
                             vertical: None,
                             source_id: label_node.id(),
                             role: "list_marker".into(),
@@ -411,6 +412,7 @@ fn list_blocks(
                 (
                     order,
                     TextBlock {
+                        mirror_x: false,
                         vertical: None,
                         source_id: node.id(),
                         role: "list".into(),
@@ -436,6 +438,7 @@ fn list_blocks(
     Ok(vec![(
         np.leaves[0],
         TextBlock {
+            mirror_x: false,
             vertical: None,
             source_id: node.id(),
             role: "list".into(),

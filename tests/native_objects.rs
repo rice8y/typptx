@@ -1254,3 +1254,72 @@ fn unsupported_native_export_never_succeeds_with_svg() {
             .any(|e| matches!(e, Element::Drawing { .. }))
     );
 }
+
+#[test]
+fn rotated_and_horizontally_reflected_tables_keep_editable_text_and_borders() {
+    let body = r#"#table(columns:(100pt,120pt),fill:(x,y)=>if y==0 {rgb("dfeeff")},[A],[B],[EDITME],[123],table.cell(colspan:2)[Merged])"#;
+    for (transform, mirror) in [("rotate(20deg)", false), ("scale(x:-100%,y:100%)", true)] {
+        let p = compile(&format!("#{transform}[{body}]"));
+        assert!(p.diagnostics.is_empty(), "{:?}", p.diagnostics);
+        let elements: Vec<_> = p.slides[0]
+            .elements
+            .iter()
+            .flat_map(Element::walk)
+            .collect();
+        assert!(
+            !elements
+                .iter()
+                .any(|e| matches!(e, Element::Table(_) | Element::Picture { .. }))
+        );
+        let texts: Vec<_> = elements
+            .iter()
+            .filter_map(|e| {
+                if let Element::Text(t) = e {
+                    Some(t)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(texts.len(), 5);
+        assert!(texts.iter().all(|t| t.mirror_x == mirror));
+        assert_eq!(
+            texts
+                .iter()
+                .flat_map(|t| &t.paragraphs)
+                .flat_map(|p| &p.runs)
+                .map(|r| r.text.as_str())
+                .collect::<Vec<_>>(),
+            ["A", "B", "EDITME", "123", "Merged"]
+        );
+        let xml = xml(&p);
+        let doc = roxmltree::Document::parse(&xml).unwrap();
+        assert_eq!(
+            doc.descendants()
+                .filter(|n| n.tag_name().name() == "camera")
+                .count(),
+            if mirror { 5 } else { 0 }
+        );
+    }
+    let ordinary = compile(body);
+    assert!(
+        ordinary.slides[0]
+            .elements
+            .iter()
+            .flat_map(Element::walk)
+            .any(|e| matches!(e, Element::Table(_)))
+    );
+}
+
+#[test]
+fn unsupported_reflected_table_layouts_fail_explicitly() {
+    for source in [
+        "#scale(x:100%,y:-100%)[#table(columns:2,[A],[B])]",
+        "#rotate(20deg)[#scale(x:-100%,y:100%)[#table(columns:2,[A],[B])]]",
+        "#scale(x:-100%,y:100%)[#table(columns:1,[$frac(a,b)$])]",
+    ] {
+        let p = compile(source);
+        assert!(!p.diagnostics.is_empty(), "{source}");
+        assert!(pptx::write(&p).is_err());
+    }
+}

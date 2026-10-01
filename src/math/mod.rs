@@ -288,7 +288,7 @@ fn convert_element(c: &Content, styles: StyleChain, block: bool) -> Result<M> {
             top: c.elem().name() == "overline",
         },
         "underbrace" | "overbrace" | "underbracket" | "overbracket" | "underparen"
-        | "overparen" => {
+        | "overparen" | "overshell" => {
             let name = c.elem().name();
             macro_rules! annotation {
                 ($element:ident) => {
@@ -305,6 +305,7 @@ fn convert_element(c: &Content, styles: StyleChain, block: bool) -> Result<M> {
                 "overbracket" => ('⎴', annotation!(OverbracketElem)),
                 "underparen" => ('⏝', annotation!(UnderparenElem)),
                 "overparen" => ('⏜', annotation!(OverparenElem)),
+                "overshell" => ('⏠', annotation!(OvershellElem)),
                 _ => unreachable!(),
             };
             let top = name.starts_with("over");
@@ -386,24 +387,9 @@ fn convert_element(c: &Content, styles: StyleChain, block: bool) -> Result<M> {
             body: Box::new(required(c, "radicand", styles, block)?),
             index: optional(c, "index", styles, block)?,
         },
-        "lr" => {
-            let mut body = required(c, "body", styles, block)?;
-            if let M::Sequence(ref mut seq) = body
-                && seq.len() >= 2
-                && let (Some(open), Some(close)) =
-                    (single_text(&seq[0]), single_text(&seq[seq.len() - 1]))
-            {
-                let (open, close) = (open.to_owned(), close.to_owned());
-                seq.pop();
-                seq.remove(0);
-                return Ok(M::Delimiter {
-                    open,
-                    close,
-                    body: Box::new(body),
-                });
-            }
-            body
-        }
+        "lr" => left_right(c, styles, block)?,
+        // Without a surrounding lr(), Typst leaves the glyph at its own size.
+        "mid" => required(c, "body", styles, block)?,
         "primes" => {
             let count = c
                 .field_by_name("count")
@@ -414,6 +400,116 @@ fn convert_element(c: &Content, styles: StyleChain, block: bool) -> Result<M> {
         }
         other => bail!("unsupported native math element {other}"),
     })
+}
+
+fn left_right(c: &Content, styles: StyleChain, block: bool) -> Result<M> {
+    fn has_middle(c: &Content) -> bool {
+        if let Some(styled) = c.to_packed::<StyledElem>() {
+            has_middle(&styled.child)
+        } else if let Some(sequence) = c.to_packed::<SequenceElem>() {
+            sequence.children.iter().any(has_middle)
+        } else {
+            c.elem().name() == "mid"
+        }
+    }
+    let body = field(c, "body").ok_or_else(|| anyhow!("missing math field body"))?;
+    if !has_middle(&body) {
+        let mut body = convert_inner(&body, styles, block)?;
+        if let M::Sequence(ref mut sequence) = body
+            && sequence.len() >= 2
+            && let (Some(open), Some(close)) = (
+                single_text(&sequence[0]),
+                single_text(sequence.last().unwrap()),
+            )
+        {
+            let (open, close) = (open.into(), close.into());
+            sequence.pop();
+            sequence.remove(0);
+            return Ok(M::Delimiter {
+                open,
+                close,
+                body: Box::new(body),
+            });
+        }
+        return Ok(body);
+    }
+    enum Part {
+        Body(M),
+        Separator(String),
+    }
+    fn collect(c: &Content, styles: StyleChain, block: bool, out: &mut Vec<Part>) -> Result<()> {
+        if let Some(styled) = c.to_packed::<StyledElem>() {
+            return collect(&styled.child, styles.chain(&styled.styles), block, out);
+        }
+        if let Some(sequence) = c.to_packed::<SequenceElem>() {
+            for child in &sequence.children {
+                collect(child, styles, block, out)?;
+            }
+        } else if c.elem().name() == "mid" {
+            let body = required(c, "body", styles, block)?;
+            let separator = single_text(&body)
+                .filter(|s| s.chars().count() == 1)
+                .ok_or_else(|| anyhow!("a native middle delimiter requires one character"))?;
+            out.push(Part::Separator(separator.into()));
+        } else {
+            ensure!(
+                c.elem().name() != "linebreak",
+                "multiline middle delimiters require --math-format svg"
+            );
+            // Nested lr() groups own their middle delimiters.
+            out.push(Part::Body(convert_inner(c, styles, block)?));
+        }
+        Ok(())
+    }
+    let mut items = Vec::new();
+    collect(&body, styles, block, &mut items)?;
+    let edge = |part: &Part| match part {
+        Part::Body(m) => single_text(m).map(str::to_owned),
+        _ => None,
+    };
+    let (open, close) = if items.len() >= 2
+        && let (Some(open), Some(close)) = (edge(&items[0]), edge(items.last().unwrap()))
+    {
+        items.pop();
+        items.remove(0);
+        (open, close)
+    } else {
+        (String::new(), String::new())
+    };
+    let mut separator = None;
+    let mut parts = vec![Vec::new()];
+    for item in items {
+        match item {
+            Part::Body(body) => parts.last_mut().unwrap().push(body),
+            Part::Separator(value) => {
+                ensure!(
+                    separator.as_ref().is_none_or(|s| s == &value),
+                    "different middle delimiters in one group require --math-format svg"
+                );
+                separator = Some(value);
+                parts.push(Vec::new());
+            }
+        }
+    }
+    if let Some(separator) = separator {
+        Ok(M::DelimitedParts {
+            open,
+            close,
+            separator,
+            parts: parts.into_iter().map(M::Sequence).collect(),
+        })
+    } else {
+        let body = M::Sequence(parts.pop().unwrap());
+        Ok(if open.is_empty() && close.is_empty() {
+            body
+        } else {
+            M::Delimiter {
+                open,
+                close,
+                body: Box::new(body),
+            }
+        })
+    }
 }
 
 fn uses_limits(c: &Content, styles: StyleChain, block: bool) -> bool {
@@ -662,6 +758,17 @@ pub fn plain(m: &M) -> String {
         } => format!("{character}{}", plain_scripts(sub, sup)),
         M::Root { body, .. } => format!("√({})", plain(body)),
         M::Delimiter { open, close, body } => format!("{open}{}{close}", plain(body)),
+        M::DelimitedParts {
+            open,
+            close,
+            separator,
+            parts,
+        } => {
+            format!(
+                "{open}{}{close}",
+                parts.iter().map(plain).collect::<Vec<_>>().join(separator)
+            )
+        }
         M::Matrix { rows, .. } => rows
             .iter()
             .map(|r| r.iter().map(plain).collect::<Vec<_>>().join(","))
