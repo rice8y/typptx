@@ -12,7 +12,7 @@ use crate::lower::text::{paragraph, script_metrics, validate_text_leaves};
 use anyhow::{Result, anyhow, ensure};
 use std::collections::{BTreeMap, HashSet};
 use typst::foundations::{Smart, Value};
-use typst::layout::{Abs, Alignment, FrameItem, HAlignment, Length, Rel, Sides, VAlignment};
+use typst::layout::{Abs, Alignment, FrameItem, Length, Rel, Sides, VAlignment};
 use typst::visualize::Paint;
 
 pub(super) fn table(
@@ -198,7 +198,7 @@ pub(super) fn table(
                 }
             }
         }
-        let mut paragraphs: Vec<_> = parts.into_iter().flat_map(|p| p.0).collect();
+        let paragraphs: Vec<_> = parts.into_iter().flat_map(|p| p.0).collect();
         let fill = match cell.content.field_by_name("fill") {
             Ok(Value::Color(c)) => Some(Brush::Solid { color: rgba(c) }),
             Ok(Value::None) | Err(_) => None,
@@ -219,16 +219,9 @@ pub(super) fn table(
             .unwrap_or(Smart::Auto);
         let mut vertical_alignment = "t";
         if let Smart::Custom(align) = alignment {
-            for paragraph in &mut paragraphs {
-                paragraph.alignment = match align.x().unwrap_or_default() {
-                    HAlignment::Center => "ctr",
-                    HAlignment::Right => "r",
-                    HAlignment::Start if paragraph.rtl => "r",
-                    HAlignment::End if !paragraph.rtl => "r",
-                    _ => "l",
-                }
-                .into();
-            }
+            // Paragraph styles already include inherited cell alignment and
+            // any explicit alignment inside the cell. Only the vertical
+            // anchor belongs to the cell rather than its individual paragraphs.
             vertical_alignment = match align.y() {
                 Some(VAlignment::Horizon) => "ctr",
                 Some(VAlignment::Bottom) => "b",

@@ -61,7 +61,7 @@ fn only_failed_structures_are_drawings_and_each_failure_is_reported() {
     let p = convert(
         r#"
 #rect(width:100pt,height:20pt,fill:blue)
-- Unsupported body #rect(width:8pt,height:8pt,fill:red)
+- Editable body #rect(width:8pt,height:8pt,fill:red)
 #image("icon.svg",width:40pt,alt:"Keep description")
 #table(columns:1,[Editable cell])
 #skew(ax:20deg)[Unsupported shear]
@@ -69,7 +69,7 @@ fn only_failed_structures_are_drawings_and_each_failure_is_reported() {
 "#,
         true,
     );
-    assert_eq!(p.diagnostics.len(), 2, "{:?}", p.diagnostics);
+    assert_eq!(p.diagnostics.len(), 1, "{:?}", p.diagnostics);
     assert!(p.diagnostics.iter().all(|d| d.code == "drawing_fallback"));
     let objects = objects(&p);
     assert_eq!(
@@ -77,14 +77,14 @@ fn only_failed_structures_are_drawings_and_each_failure_is_reported() {
             .iter()
             .filter(|e| matches!(e, Element::Drawing { .. }))
             .count(),
-        2
+        1
     );
     assert_eq!(
         objects
             .iter()
             .filter(|e| matches!(e, Element::Shape(_)))
             .count(),
-        2
+        3
     );
     assert_eq!(
         objects

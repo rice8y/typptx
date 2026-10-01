@@ -33,7 +33,7 @@ fn structure_inner(
     let lower = |capture: &Capture| match kind {
         Kind::Table => table(capture, idx, page, options),
         Kind::Bibliography => bibliography(capture, idx, page).map(Element::Text),
-        Kind::List | Kind::Enum => list(capture, idx, page, options).map(Element::Text),
+        Kind::List | Kind::Enum => list(capture, idx, page, options),
         _ => text_block_ids(capture, idx, page, ids).map(Element::Text),
     };
     if let Some(first) = ids
@@ -63,14 +63,6 @@ fn structure_inner(
                     (t.sx.get() * t.kx.get() + t.ky.get() * t.sy.get()).abs() < 1e-6,
                     "PowerPoint cannot shear editable text"
                 );
-                ensure!(
-                    kind != Kind::Table
-                        || (t.kx.get().abs() < 1e-6
-                            && t.ky.get().abs() < 1e-6
-                            && t.sx.get() > 0.
-                            && t.sy.get() > 0.),
-                    "PowerPoint does not apply rotation or reflection to native tables"
-                );
                 let mut ts = t;
                 ts.tx = Abs::zero();
                 ts.ty = Abs::zero();
@@ -78,6 +70,14 @@ fn structure_inner(
                     .untransformed(page, ts)
                     .ok_or_else(|| anyhow!("singular text transform"))?;
                 let element = lower(&normalized)?;
+                ensure!(
+                    !element.walk().any(|e| matches!(e, Element::Table(_)))
+                        || (t.kx.get().abs() < 1e-6
+                            && t.ky.get().abs() < 1e-6
+                            && t.sx.get() > 0.
+                            && t.sy.get() > 0.),
+                    "PowerPoint does not apply rotation or reflection to native tables"
+                );
                 return Ok(crate::geometry::transforms::apply(
                     vec![element],
                     [t.sx.get(), t.ky.get(), t.kx.get(), t.sy.get(), 0., 0.],

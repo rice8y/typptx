@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "source": "rich-lists.typ",
+  "purpose": "Explicit paragraph alignment in native table cells, invisible list markers, and native graphics and tables inside list bodies.",
+  "slides": 3,
+  "slide_size_pt": [
+    600,
+    480
+  ],
+  "package": {
+    "native_tables": 2,
+    "pictures": 0
+  },
+  "regions": [
+    {
+      "id": "right-cell",
+      "slide": 1,
+      "box_pt": [
+        35,
+        63,
+        265,
+        116
+      ],
+      "line_count": 1,
+      "content_box_pt": [
+        160,
+        63,
+        265,
+        116
+      ]
+    },
+    {
+      "id": "centered-cell",
+      "slide": 1,
+      "box_pt": [
+        275,
+        63,
+        505,
+        116
+      ],
+      "line_count": 1,
+      "content_box_pt": [
+        354,
+        63,
+        426,
+        116
+      ]
+    },
+    {
+      "id": "mixed-cell",
+      "slide": 1,
+      "box_pt": [
+        35,
+        128,
+        265,
+        210
+      ],
+      "line_count": 2
+    },
+    {
+      "id": "inherited-cell",
+      "slide": 1,
+      "box_pt": [
+        275,
+        128,
+        505,
+        210
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "empty-marker-body",
+      "slide": 2,
+      "box_pt": [
+        34,
+        85,
+        245,
+        155
+      ],
+      "line_count": 2
+    },
+    {
+      "id": "hidden-marker-body",
+      "slide": 2,
+      "box_pt": [
+        309,
+        85,
+        530,
+        165
+      ],
+      "line_count": 2
+    },
+    {
+      "id": "inline-graphic-body",
+      "slide": 3,
+      "box_pt": [
+        49,
+        58,
+        190,
+        84
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "callout-body",
+      "slide": 3,
+      "box_pt": [
+        54,
+        121,
+        310,
+        198
+      ],
+      "line_count": 3
+    },
+    {
+      "id": "nested-table-cell",
+      "slide": 3,
+      "box_pt": [
+        55,
+        240,
+        167,
+        270
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "nested-table-list",
+      "slide": 3,
+      "box_pt": [
+        175,
+        240,
+        307,
+        270
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "last-item",
+      "slide": 3,
+      "box_pt": [
+        49,
+        274,
+        200,
+        305
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "callout-introduction",
+      "slide": 3,
+      "box_pt": [
+        49,
+        82,
+        260,
+        116
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "table-introduction",
+      "slide": 3,
+      "box_pt": [
+        49,
+        202,
+        260,
+        235
+      ],
+      "line_count": 1
+    }
+  ],
+  "edits": [
+    {
+      "slide": 1,
+      "table": 1,
+      "row": 1,
+      "column": 1,
+      "before": "Right aligned",
+      "after": "Edited",
+      "region": "right-cell"
+    },
+    {
+      "slide": 3,
+      "table": 1,
+      "row": 1,
+      "column": 1,
+      "before": "Editable cell",
+      "after": "Edited cell",
+      "region": "nested-table-cell"
+    }
+  ]
+}

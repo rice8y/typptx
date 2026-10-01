@@ -1,4 +1,5 @@
 //! Preserve list hierarchy, labels, numbering, and paragraph spacing.
+mod rich;
 use crate::compiler::capture::{Capture, Kind};
 use crate::ir::*;
 use crate::lower::structure::{boolean, integer, string};
@@ -14,8 +15,12 @@ pub(super) fn list(
     idx: usize,
     page: usize,
     options: &crate::lower::Options,
-) -> Result<TextBlock> {
-    list_in_region(capture, idx, page, options, None)
+) -> Result<Element> {
+    if rich::needed(capture, idx, page) {
+        rich::lower(capture, idx, page, options)
+    } else {
+        list_in_region(capture, idx, page, options, None).map(Element::Text)
+    }
 }
 
 pub(super) fn list_in_region(
@@ -25,6 +30,20 @@ pub(super) fn list_in_region(
     options: &crate::lower::Options,
     region: Option<Rect>,
 ) -> Result<TextBlock> {
+    Ok(list_blocks(capture, idx, page, options, region, false)?
+        .pop()
+        .unwrap()
+        .1)
+}
+
+fn list_blocks(
+    capture: &Capture,
+    idx: usize,
+    page: usize,
+    options: &crate::lower::Options,
+    region: Option<Rect>,
+    separate: bool,
+) -> Result<Vec<(usize, TextBlock)>> {
     let (prepared, markers) = picture_markers(capture, idx, page, options.image_dpi)?;
     let capture = prepared.as_ref();
     let node = &capture.nodes[idx];
@@ -57,7 +76,7 @@ pub(super) fn list_in_region(
     for body in capture
         .descendants(idx)
         .into_iter()
-        .filter(|&i| capture.nodes[i].kind == Kind::ItemBody)
+        .filter(|&i| capture.nodes[i].kind == Kind::ItemBody && belongs_to_list(capture, i, idx))
     {
         if capture.nodes[body].pages.contains_key(&page)
             && !groups.iter().any(|(b, _, _)| *b == body)
@@ -68,7 +87,12 @@ pub(super) fn list_in_region(
             let has_marker = (0..body)
                 .rev()
                 .find(|&i| capture.nodes[i].kind == Kind::Label && owner_list(capture, i) == owner)
-                .is_some_and(|i| capture.nodes[i].pages.contains_key(&page));
+                .and_then(|i| capture.nodes[i].pages.get(&page))
+                .is_some_and(|np| {
+                    np.leaves
+                        .iter()
+                        .any(|&id| matches!(capture.pages[page][id].item, FrameItem::Text(_)))
+                });
             if has_marker {
                 groups.push((body, None, vec![]));
             }
@@ -89,10 +113,49 @@ pub(super) fn list_in_region(
     });
     ensure!(!groups.is_empty(), "list has no items");
     let mut measured = Vec::new();
+    let mut placements = Vec::new();
     let mut seen_bodies = HashSet::new();
     let mut last_numbers: HashMap<usize, (u32, u32)> = HashMap::new();
-    let region = region.unwrap_or_else(|| np.layout.map(|(_, b)| b).unwrap_or(np.context));
-    for (body_idx, _, ids) in groups {
+    let region = region.unwrap_or_else(|| {
+        let mut bounds = np.layout.map(|(_, b)| b).unwrap_or(np.context);
+        if separate {
+            return bounds;
+        }
+        // Office rounds advances to 1/8pt. Intrinsically sized lists can
+        // otherwise wrap their longest source line at the final glyph.
+        // Native table cells supply their own fixed content region.
+        bounds.width += 0.125;
+        let rtl = groups
+            .iter()
+            .flat_map(|(_, _, ids)| ids)
+            .find_map(|&id| {
+                capture.pages[page][id]
+                    .ancestors
+                    .iter()
+                    .rev()
+                    .find_map(|&i| {
+                        capture.nodes[i]
+                            .content
+                            .location()
+                            .and_then(|loc| capture.paragraph_rtl.get(&loc).copied())
+                    })
+            })
+            .unwrap_or(false);
+        if rtl {
+            bounds.x -= 0.125;
+        }
+        bounds
+    });
+    for (body_idx, par_idx, ids) in groups {
+        let order = ids.first().copied().unwrap_or_else(|| {
+            (0..body_idx)
+                .rev()
+                .filter(|&i| capture.nodes[i].kind == Kind::Label)
+                .find_map(|i| capture.nodes[i].pages.get(&page)?.leaves.first().copied())
+                .unwrap_or(usize::MAX)
+        });
+        let paragraph_region = par_idx.map(|p| capture.nodes[p].pages[&page].context);
+        placements.push((order, paragraph_region, text_clip(capture, page, &ids)?));
         let list_idx =
             owner_list(capture, body_idx).ok_or_else(|| anyhow!("missing enclosing list"))?;
         let owner = &capture.nodes[list_idx];
@@ -168,7 +231,12 @@ pub(super) fn list_in_region(
             let label_node = &capture.nodes[label_idx];
             // A split item can continue on a later page without repeating its
             // marker. Such continuation paragraphs must not gain a new bullet.
-            if let Some(label_page) = label_node.pages.get(&page) {
+            if let Some(label_page) = label_node.pages.get(&page)
+                && label_page
+                    .leaves
+                    .iter()
+                    .any(|&id| matches!(capture.pages[page][id].item, FrameItem::Text(_)))
+            {
                 let label = paragraph(capture, page, &label_page.leaves)?;
                 let marker = label
                     .paragraph
@@ -235,7 +303,8 @@ pub(super) fn list_in_region(
                         _ => number,
                     };
                     last_numbers.insert(list_idx, (number, start));
-                    let start = Some(start);
+                    // Separate text boxes have independent numbering sequences.
+                    let start = Some(if separate { number } else { start });
                     p.paragraph.bullet = Some(Bullet::Number {
                         scheme: scheme.into(),
                         start,
@@ -259,6 +328,48 @@ pub(super) fn list_in_region(
         // first line. Extra item spacing is independent of that line height.
         measured[i].paragraph.space_after = (gap - measured[i + 1].paragraph.line_spacing).max(0.0);
     }
+    if separate {
+        return Ok(measured
+            .into_iter()
+            .zip(placements)
+            .map(|(mut p, (order, context, clip))| {
+                p.paragraph.space_after = 0.;
+                let mut bounds = Rect {
+                    x: region.x,
+                    y: p.first_baseline - p.ascent,
+                    width: region.width,
+                    height: p.last_baseline - p.first_baseline + p.ascent + p.descent + 2.,
+                };
+                if let Some(context) = context
+                    && context.right() < region.right() - 0.1
+                {
+                    // An inset block has its own wrapping width. The longest
+                    // realized line fits inside that block and retains its
+                    // source wraps without borrowing space from the whole list.
+                    bounds.width = p.right - region.x + 0.1;
+                }
+                if matches!(p.paragraph.alignment.as_str(), "ctr" | "r") {
+                    bounds.x = p.x;
+                    bounds.width = p.right - p.x + 0.1;
+                    p.paragraph.margin_left = 0.;
+                    p.paragraph.margin_right = 0.;
+                }
+                (
+                    order,
+                    TextBlock {
+                        vertical: None,
+                        source_id: node.id(),
+                        role: "list".into(),
+                        clip,
+                        font_scale: None,
+                        bounds,
+                        paragraphs: vec![p.paragraph],
+                        wrap: !capture.has_fixed_math_layout(page, &np.leaves),
+                    },
+                )
+            })
+            .collect());
+    }
     let first = measured.first().unwrap();
     let last = measured.last().unwrap();
     let bounds = Rect {
@@ -267,16 +378,19 @@ pub(super) fn list_in_region(
         width: region.width,
         height: last.last_baseline + last.descent - (first.first_baseline - first.ascent) + 2.0,
     };
-    Ok(TextBlock {
-        vertical: None,
-        source_id: node.id(),
-        role: "list".into(),
-        clip: text_clip(capture, page, &np.leaves)?,
-        font_scale: None,
-        bounds,
-        paragraphs: measured.into_iter().map(|p| p.paragraph).collect(),
-        wrap: !capture.has_fixed_math_layout(page, &np.leaves),
-    })
+    Ok(vec![(
+        np.leaves[0],
+        TextBlock {
+            vertical: None,
+            source_id: node.id(),
+            role: "list".into(),
+            clip: text_clip(capture, page, &np.leaves)?,
+            font_scale: None,
+            bounds,
+            paragraphs: measured.into_iter().map(|p| p.paragraph).collect(),
+            wrap: !capture.has_fixed_math_layout(page, &np.leaves),
+        },
+    )])
 }
 
 /// Whether a label needs more styling or layout than a character bullet can
@@ -364,7 +478,7 @@ fn picture_markers(
     let mut markers = HashMap::new();
     for label in capture.descendants(idx) {
         let node = &capture.nodes[label];
-        if node.kind != Kind::Label {
+        if node.kind != Kind::Label || !belongs_to_list(capture, label, idx) {
             continue;
         }
         let Some(np) = node.pages.get(&page) else {
@@ -455,9 +569,26 @@ pub(super) fn owner_list(capture: &Capture, idx: usize) -> Option<usize> {
         if matches!(capture.nodes[i].kind, Kind::List | Kind::Enum) {
             return Some(i);
         }
+        if matches!(capture.nodes[i].kind, Kind::Table | Kind::Cell) {
+            return None;
+        }
         parent = capture.nodes[i].parent;
     }
     None
+}
+
+fn belongs_to_list(capture: &Capture, idx: usize, list: usize) -> bool {
+    let mut parent = Some(idx);
+    while let Some(i) = parent {
+        if i == list {
+            return true;
+        }
+        if matches!(capture.nodes[i].kind, Kind::Table | Kind::Cell) {
+            return false;
+        }
+        parent = capture.nodes[i].parent;
+    }
+    false
 }
 
 fn numbering_scheme(pattern: &str, depth: usize) -> Option<&'static str> {

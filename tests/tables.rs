@@ -175,6 +175,43 @@ fn relative_cell_insets_use_full_span_and_inherited_font_size() {
 }
 
 #[test]
+fn explicit_paragraph_alignment_overrides_inherited_cell_alignment() {
+    for (cell_align, body, expected) in [
+        ("left", "#align(right)[Right aligned]", "r"),
+        ("right", "#align(left)[Left aligned]", "l"),
+        ("left", "#align(center)[Centered]", "ctr"),
+        ("right", "Inherited", "r"),
+        ("center", "Inherited", "ctr"),
+    ] {
+        let p = compile(&format!(
+            "#table(columns:240pt,align:{cell_align},[{body}])"
+        ));
+        assert_eq!(tables(&p)[0].cells[0].paragraphs[0].alignment, expected);
+        let s = xml(&p);
+        let doc = roxmltree::Document::parse(&s).unwrap();
+        assert_eq!(
+            doc.descendants()
+                .find(|n| n.tag_name().name() == "pPr")
+                .unwrap()
+                .attribute("algn"),
+            Some(expected)
+        );
+    }
+    let p = compile(
+        "#table(columns:240pt,align:left,[#align(right)[First]\n\n#align(center)[Second]\n\nThird])",
+    );
+    assert_eq!(
+        tables(&p)[0].cells[0]
+            .paragraphs
+            .iter()
+            .map(|p| p.alignment.as_str())
+            .collect::<Vec<_>>(),
+        ["r", "ctr", "l"]
+    );
+    xml(&p);
+}
+
+#[test]
 fn repeated_headers_and_footers_keep_each_body_row_once() {
     for gutter in ["", "column-gutter:8pt,row-gutter:6pt,"] {
         let p = compile(&format!(

@@ -87,12 +87,30 @@ fn unsupported_graphics_in_list_bodies_keep_their_call_site() {
     let input = dir.path().join("main.typ");
     fs::write(
         &input,
-        "// source location\n- First #rect(width:4pt,height:4pt)\n- Second",
+        "// source location\n- First #rect(width:4pt,height:4pt,fill:gradient.radial(red.transparentize(80%),blue))\n- Second",
     )
     .unwrap();
     let diagnostics = convert(&input, dir.path(), lower::Options::default());
     assert!(!diagnostics.is_empty());
     assert_eq!(diagnostics[0].source.as_ref().unwrap().line, 2);
+}
+
+#[test]
+fn rotated_native_tables_inside_lists_report_office_limitations() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("main.typ");
+    fs::write(
+        &input,
+        "#rotate(20deg)[\n- Before\n\n  #table(columns:2,[A],[B])\n]",
+    )
+    .unwrap();
+    let diagnostics = convert(&input, dir.path(), lower::Options::default());
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("rotation or reflection to native tables")
+    );
 }
 
 #[test]
