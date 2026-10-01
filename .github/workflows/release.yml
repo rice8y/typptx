@@ -1,0 +1,148 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Check tag, manifest, and lockfile versions
+        id: version
+        shell: bash
+        run: python tools/release.py check "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+      - name: Test release packaging
+        run: python -m unittest discover -s tools -p 'test_release.py'
+
+  build:
+    needs: version
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            runner: macos-15
+            target: aarch64-apple-darwin
+            binary: typptx
+          - platform: macos-x86_64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            binary: typptx
+          - platform: linux-x86_64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            binary: typptx
+          - platform: windows-x86_64
+            runner: windows-2022
+            target: x86_64-pc-windows-msvc
+            binary: typptx.exe
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_BUILD_JOBS: '2'
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: '-C target-feature=+crt-static'
+      RELEASE_VERSION: ${{ needs.version.outputs.version }}
+      RELEASE_PLATFORM: ${{ matrix.platform }}
+      RELEASE_TARGET: ${{ matrix.target }}
+      RELEASE_BINARY: target/${{ matrix.target }}/release/${{ matrix.binary }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.93.1
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes clang libclang-dev
+      - name: Locate macOS libclang
+        if: runner.os == 'macOS'
+        run: echo "LIBCLANG_PATH=$(dirname "$(xcrun --find clang)")/../lib" >> "$GITHUB_ENV"
+      - name: Locate Windows libclang
+        if: runner.os == 'Windows'
+        run: echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin' >> "$GITHUB_ENV"
+      - name: Build
+        run: cargo build --release --locked --target "$RELEASE_TARGET"
+      - name: Check the binary and convert a document
+        run: |
+          test "$("$RELEASE_BINARY" --version)" = "typptx $RELEASE_VERSION"
+          "$RELEASE_BINARY" tests/fixtures/powerpoint/text-layout.typ --strict -o build/release-smoke.pptx
+      - name: Package binary
+        run: python tools/release.py package "$GITHUB_REF_NAME" --platform "$RELEASE_PLATFORM" --binary "$RELEASE_BINARY"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: binary-${{ matrix.platform }}
+          path: build/release/*.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ needs.version.outputs.version }}
+      RELEASE_PRERELEASE: ${{ needs.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: binary-*
+          path: build/release
+          merge-multiple: true
+      - name: Package tagged source and write checksums
+        shell: bash
+        run: |
+          git archive --format=zip --prefix="typptx-v$RELEASE_VERSION/" --output="build/release/typptx-v$RELEASE_VERSION.zip" "$GITHUB_SHA"
+          python tools/release.py checksums "$GITHUB_REF_NAME"
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A failed upload leaves a draft that can be completed by rerunning this job.
+          if gh release view "$GITHUB_REF_NAME" --json isDraft > build/release-state.json; then
+            python -c 'import json; assert json.load(open("build/release-state.json"))["isDraft"], "This release is already published"'
+          else
+            args=(--draft --verify-tag --title "Typptx v$RELEASE_VERSION" --generate-notes)
+            if [[ "$RELEASE_PRERELEASE" == true ]]; then args+=(--prerelease); fi
+            gh release create "$GITHUB_REF_NAME" "${args[@]}"
+          fi
+          gh release upload "$GITHUB_REF_NAME" build/release/*.zip build/release/SHA256SUMS --clobber
+          gh release edit "$GITHUB_REF_NAME" --draft=false
