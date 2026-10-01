@@ -53,7 +53,7 @@ fn pictures(p: &Presentation) -> Vec<(&typptx::ir::Rect, &str, &[u8])> {
 }
 
 #[test]
-fn svg_images_use_their_transformed_placement_for_downsampling() {
+fn svg_picture_preview_uses_placement_dpi_and_keeps_the_vector_asset() {
     let dir = tempfile::tempdir().unwrap();
     sources(dir.path());
     // Inline data keeps the fixture self-contained for Typst's SVG loader.
@@ -71,6 +71,13 @@ fn svg_images_use_their_transformed_placement_for_downsampling() {
         ),
     );
     let p = convert(&doc, Some(100));
+    assert!(
+        p.slides[0]
+            .elements
+            .iter()
+            .flat_map(Element::walk)
+            .any(|e| matches!(e, Element::Picture { svg: Some(_), .. }))
+    );
     let pictures = pictures(&p);
     assert_eq!(pictures.len(), 1);
     let decoded = image::load_from_memory(pictures[0].2).unwrap();

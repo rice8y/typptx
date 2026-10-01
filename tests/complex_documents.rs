@@ -43,9 +43,15 @@ fn text(slide: &Slide) -> String {
         .map(|r| r.text.as_str())
         .collect()
 }
-fn native_package(p: &Presentation) {
+fn native_package(p: &Presentation, pictures: usize) {
     let zip = zip::ZipArchive::new(Cursor::new(pptx::write(p).unwrap())).unwrap();
-    assert!(!zip.file_names().any(|n| n.starts_with("ppt/media/")));
+    // Each vector picture has an SVG asset and a PNG preview.
+    assert_eq!(
+        zip.file_names()
+            .filter(|n| n.starts_with("ppt/media/"))
+            .count(),
+        pictures * 2
+    );
     for element in p
         .slides
         .iter()
@@ -105,7 +111,7 @@ fn continued_tables_keep_decorations_gutters_headers_and_direction() {
         for i in 0..24 {
             assert_eq!(all.matches(&format!("record-{i}-end")).count(), 1);
         }
-        native_package(&p);
+        native_package(&p, 0);
     }
 }
 
@@ -144,6 +150,13 @@ fn rich_cells_keep_grids_lists_equations_and_nested_tables_editable() {
         2
     );
     assert!(elements.iter().any(|e| matches!(e, Element::Shape(_))));
+    assert_eq!(
+        elements
+            .iter()
+            .filter(|e| matches!(e, Element::Picture { svg: Some(_), .. }))
+            .count(),
+        1
+    );
     let pars = paragraphs(&p.slides[0]);
     assert_eq!(pars.iter().filter(|p| p.bullet.is_some()).count(), 5);
     assert!(pars.iter().flat_map(|p| &p.runs).any(|r| r.math.is_some()));
@@ -187,7 +200,7 @@ fn rich_cells_keep_grids_lists_equations_and_nested_tables_editable() {
             .filter(|r| r.math.is_some())
             .all(|r| r.math_inline)
     );
-    native_package(&p);
+    native_package(&p, 1);
 }
 
 #[test]
@@ -227,7 +240,7 @@ fn continued_list_bodies_keep_nested_numbering_and_inline_styles() {
             .filter(|r| r.text == "raised")
             .all(|r| r.style.baseline > 0.)
     );
-    native_package(&p);
+    native_package(&p, 0);
 }
 
 #[test]

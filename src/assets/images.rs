@@ -5,6 +5,47 @@ use image::imageops::FilterType;
 use image::{DynamicImage, ImageEncoder, codecs::jpeg::JpegEncoder, codecs::png::PngEncoder};
 use typst::visualize::RasterImage;
 
+/// Keep an imported SVG or PDF page as a single vector picture. Outlining SVG
+/// text makes its appearance independent of the fonts installed in Office.
+pub fn vector(
+    image: &typst::visualize::Image,
+    bounds: Rect,
+    dpi: Option<u32>,
+) -> Result<crate::ir::Element> {
+    use typst::{
+        foundations::{Content, Smart},
+        layout::{Abs, Frame, FrameItem, Point, Sides, Size},
+        syntax::Span,
+        visualize::ImageKind,
+    };
+    let svg = match image.kind() {
+        ImageKind::Svg(svg) => svg.tree().to_string(&usvg::WriteOptions::default()),
+        ImageKind::Pdf(_) => String::from_utf8(typst_svg::WebImage::new(image).data.to_vec())?,
+        ImageKind::Raster(_) => unreachable!("raster images retain their original encoding"),
+    };
+    let size = Size::new(Abs::pt(bounds.width), Abs::pt(bounds.height));
+    let mut frame = Frame::hard(size);
+    frame.push(
+        Point::zero(),
+        FrameItem::Image(image.clone(), size, Span::detached()),
+    );
+    let page = typst_layout::Page {
+        frame,
+        bleed: Sides::splat(Abs::zero()),
+        fill: Smart::Custom(None),
+        numbering: None,
+        supplement: Content::empty(),
+        number: 1,
+    };
+    Ok(crate::ir::Element::Picture {
+        bounds,
+        clip: None,
+        extension: "png".into(),
+        bytes: render_fallback(&page, dpi)?,
+        svg: Some(svg),
+    })
+}
+
 pub fn resample(
     raster: &RasterImage,
     bounds: Rect,

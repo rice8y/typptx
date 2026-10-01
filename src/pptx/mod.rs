@@ -230,9 +230,14 @@ fn element_node(
             extension,
             bytes,
             clip,
+            svg,
         } => {
             let rel = image_part(doc, slide_part, extension, bytes)?;
-            let mut picture = drawing::picture(id, *bounds, &rel, None, None);
+            let svg_rel = svg
+                .as_ref()
+                .map(|svg| image_part(doc, slide_part, "svg", svg.as_bytes()))
+                .transpose()?;
+            let mut picture = drawing::picture(id, *bounds, &rel, svg_rel.as_deref(), None);
             if let Some(commands) = clip {
                 // Office stretches a picture into the geometry's visible bounds.
                 // Crop the source image to that rectangle before applying a mask.

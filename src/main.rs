@@ -34,7 +34,7 @@ struct Args {
     /// Explicitly permit SVG/PNG fallback for unsupported blocks (loses editability).
     #[arg(long, conflicts_with = "strict")]
     allow_image_fallback: bool,
-    /// Limit embedded PNG/JPEG resolution and render fallback PNGs at this DPI (no upscaling).
+    /// Limit raster image resolution (no upscaling) and set PNG preview/fallback DPI.
     #[arg(long, value_name = "DPI", value_parser = clap::value_parser!(u32).range(1..))]
     image_dpi: Option<u32>,
     /// Export equations as editable Office Math or as Typst-rendered SVG pictures.

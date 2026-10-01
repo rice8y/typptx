@@ -153,8 +153,6 @@ fn a_clip_cutting_through_a_text_line_reports_the_office_limit() {
     for source in [
         "#set text(size:24pt)\n#box(width:130pt,height:40pt,clip:true)[#place(dx:-20pt)[Editable complete paragraph]]",
         "#rect(width:100pt,height:100pt,stroke:none,fill:tiling(size:(30pt,30pt))[*Text*])",
-        "#image(bytes(\"<svg xmlns='http://www.w3.org/2000/svg' width='60' height='40'><text x='-10' y='25' font-family='Arial' font-size='20'>Editable paragraph</text></svg>\"),format:\"svg\")",
-        "#image(bytes(\"<svg xmlns='http://www.w3.org/2000/svg' width='60' height='40'><text x='30' y='-10' font-family='Arial' font-size='20' writing-mode='tb'>Editable paragraph</text></svg>\"),format:\"svg\")",
     ] {
         let p = compile_unchecked(source, None);
         assert!(

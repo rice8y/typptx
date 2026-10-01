@@ -82,19 +82,9 @@ fn cli_reports_unicode_columns_and_keeps_existing_outputs_on_failure() {
 }
 
 #[test]
-fn unsupported_svg_and_graphical_list_markers_keep_their_call_site() {
+fn graphical_list_markers_keep_their_call_site() {
     let dir = tempfile::tempdir().unwrap();
     let input = dir.path().join("main.typ");
-    fs::write(dir.path().join("filtered.svg"), r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><defs><filter id="f"><feColorMatrix type="saturate" values="0.3"/></filter></defs><rect width="100" height="50" fill="red" filter="url(#f)"/></svg>"#).unwrap();
-    fs::write(
-        &input,
-        "#set page(width:500pt,height:400pt)\n#table(columns:1,[\n#image(\"filtered.svg\")\n])",
-    )
-    .unwrap();
-    let diagnostics = convert(&input, dir.path(), lower::Options::default());
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0].element.as_deref(), Some("image"));
-    assert_eq!(diagnostics[0].source.as_ref().unwrap().line, 3);
     fs::write(
         &input,
         "#set list(marker: rect(width:4pt,height:4pt))\n- First\n- Second",

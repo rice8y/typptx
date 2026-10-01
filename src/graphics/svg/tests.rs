@@ -1,8 +1,8 @@
+use crate::{ir::*, lower, pptx, world::CompilerWorld};
 use std::{
     fs,
     io::{Cursor, Read},
 };
-use typptx::{ir::*, lower, pptx, world::CompilerWorld};
 fn convert(body: &str) -> Presentation {
     let out = convert_unchecked(body);
     assert!(out.diagnostics.is_empty(), "{:?}", out.diagnostics);
@@ -18,7 +18,45 @@ fn convert_unchecked(body: &str) -> Presentation {
         .unwrap()
         .compile()
         .unwrap();
-    lower::convert(&doc).unwrap()
+    // Exercise the internal SVG interchange used for Typst paint geometry.
+    // Imported SVG files take the separate single-picture path.
+    let capture = crate::capture::Capture::new(&doc);
+    let image = capture.pages[0]
+        .iter()
+        .find_map(|leaf| {
+            if let typst::layout::FrameItem::Image(image, _, _) = &leaf.item
+                && let typst::visualize::ImageKind::Svg(svg) = image.kind()
+            {
+                return Some(svg);
+            }
+            None
+        })
+        .unwrap();
+    let mut output = lower::convert(&doc).unwrap();
+    output.slides[0].elements.clear();
+    match super::convert(
+        image.tree(),
+        Rect {
+            x: 30.,
+            y: 30.,
+            width: 200.,
+            height: 120.,
+        },
+        None,
+    ) {
+        Ok(elements) => output.slides[0].elements = elements,
+        Err(error) => output
+            .diagnostics
+            .push(crate::compiler::diagnostics::from_error(
+                1,
+                "svg".into(),
+                "unsupported_graphics",
+                "image",
+                error,
+                None,
+            )),
+    }
+    output
 }
 fn xml(p: &Presentation) -> String {
     let mut z = zip::ZipArchive::new(Cursor::new(pptx::write(p).unwrap())).unwrap();
@@ -49,7 +87,6 @@ fn svg_text_is_one_editable_paragraph_with_source_runs() {
         .filter_map(|n| n.text())
         .collect();
     assert_eq!(text, "Native text");
-    assert!(!p.fonts.is_empty());
 }
 
 #[test]

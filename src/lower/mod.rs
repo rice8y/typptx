@@ -35,8 +35,8 @@ pub struct Options {
     pub allow_image_fallback: bool,
     pub math_format: MathFormat,
     /// Maximum resolution of original raster images at their placed size.
-    /// Also sets the fallback PNG rendering DPI. None preserves original image
-    /// bytes and uses 144 DPI for fallback PNGs. Must be greater than zero.
+    /// Also sets the PNG preview and fallback rendering DPI. None preserves
+    /// original raster bytes and uses 144 DPI for rendered PNGs. Must be positive.
     pub image_dpi: Option<u32>,
 }
 
@@ -97,7 +97,7 @@ fn convert_document(
     };
     let notes = crate::compiler::notes::extract(document)?;
     let mut output = Presentation {
-        schema_version: 15,
+        schema_version: 16,
         slides: Vec::new(),
         diagnostics: Vec::new(),
         fonts: Vec::new(),

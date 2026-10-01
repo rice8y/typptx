@@ -346,12 +346,15 @@ pub enum Element {
     Text(TextBlock),
     Table(Table),
     Shape(VectorShape),
-    /// Original raster assets stay individual PowerPoint pictures.
+    /// Each imported asset stays one PowerPoint picture. Vector assets carry
+    /// SVG with a PNG preview for Office versions without SVG support.
     Picture {
         bounds: Rect,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         clip: Option<Vec<PathCommand>>,
         extension: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        svg: Option<String>,
         #[serde(skip)]
         bytes: Vec<u8>,
     },

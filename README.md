@@ -2,6 +2,8 @@
 
 Typptx is a command-line tool that converts Typst to PowerPoint with editable text, lists, tables, equations, and vector shapes.
 
+CeTZ and Typst drawing primitives become editable shapes. Imported images, including SVG and PDF pages, stay individual pictures. SVG and PDF pages retain vector graphics within each picture.
+
 Typptx has the following features:
 
 - Native list numbering and tables with merged cells
@@ -59,8 +61,7 @@ See `typptx --help` for all options.
 ## Limitations
 
 - Layout may differ from Typst.
-- Rotated tables, text on paths, complex SVG effects, and some equations are unsupported.
-- Embedded PDFs become native paths, gradients, and individual pictures. Text with usable OpenType fonts and Unicode mappings stays editable; other glyphs become vector outlines. PDF blend modes, soft masks, and mesh shadings are unsupported.
+- Rotated tables, text on paths, and some equations are unsupported.
 - Unsupported content stops conversion by default. Image fallbacks lose internal editability.
 - Fonts that cannot be embedded must be installed locally.
 - All pages must have the same dimensions.

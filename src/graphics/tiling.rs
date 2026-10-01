@@ -1,6 +1,6 @@
 //! Use Typst's resolved paint coordinates, then lower the pattern to native
 //! paths and text. Pure graphics use SVG only as an in-memory interchange;
-//! patterns containing text retain their original semantic frame.
+//! patterns containing text or imported images retain their original frame.
 use crate::{
     compiler::capture::Leaf,
     geometry::paths,
@@ -14,56 +14,29 @@ use typst::{
     visualize::{Geometry, Paint, Shape},
 };
 
-fn has_text(frame: &Frame) -> bool {
+fn has_text_or_images(frame: &Frame) -> bool {
     frame.items().any(|(_, item)| match item {
         FrameItem::Text(_) => true,
-        FrameItem::Group(g) => has_text(&g.frame),
-        FrameItem::Image(image, _, _) => matches!(image.kind(), typst::visualize::ImageKind::Svg(svg) if svg.tree().has_text_nodes()),
-        FrameItem::Shape(s, _) => s.fill.iter().chain(s.stroke.iter().map(|s| &s.paint))
-            .any(|p| matches!(p, Paint::Tiling(t) if has_text(t.frame()))),
+        FrameItem::Group(g) => has_text_or_images(&g.frame),
+        FrameItem::Image(..) => true,
+        FrameItem::Shape(s, _) => s
+            .fill
+            .iter()
+            .chain(s.stroke.iter().map(|s| &s.paint))
+            .any(|p| matches!(p, Paint::Tiling(t) if has_text_or_images(t.frame()))),
         _ => false,
     })
-}
-
-fn check_assets(frame: &Frame) -> Result<()> {
-    for (_, item) in frame.items() {
-        match item {
-            FrameItem::Group(g) => check_assets(&g.frame)?,
-            FrameItem::Image(image, _, _) => ensure!(
-                !matches!(image.kind(), typst::visualize::ImageKind::Pdf(_)),
-                "PDF assets in a tiling need semantic conversion"
-            ),
-            FrameItem::Shape(s, _) => {
-                for p in s.fill.iter().chain(s.stroke.iter().map(|s| &s.paint)) {
-                    if let Paint::Tiling(t) = p {
-                        check_assets(t.frame())?;
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    Ok(())
 }
 
 pub(crate) fn convert(leaf: &Leaf, options: &crate::lower::Options) -> Result<Vec<Element>> {
     let FrameItem::Shape(shape, _) = &leaf.item else {
         anyhow::bail!("expected shape")
     };
-    for p in shape
-        .fill
-        .iter()
-        .chain(shape.stroke.iter().map(|s| &s.paint))
-    {
-        if let Paint::Tiling(t) = p {
-            check_assets(t.frame())?;
-        }
-    }
     if shape
         .fill
         .iter()
         .chain(shape.stroke.iter().map(|s| &s.paint))
-        .any(|p| matches!(p, Paint::Tiling(t) if has_text(t.frame())))
+        .any(|p| matches!(p, Paint::Tiling(t) if has_text_or_images(t.frame())))
     {
         return native(leaf, options);
     }

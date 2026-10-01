@@ -39,8 +39,16 @@ fn text(c: &TableCell) -> String {
         .collect()
 }
 fn xml(p: &Presentation) -> String {
+    xml_with_pictures(p, 0)
+}
+fn xml_with_pictures(p: &Presentation, pictures: usize) -> String {
     let mut zip = zip::ZipArchive::new(Cursor::new(pptx::write(p).unwrap())).unwrap();
-    assert!(!zip.file_names().any(|n| n.starts_with("ppt/media/")));
+    assert_eq!(
+        zip.file_names()
+            .filter(|n| n.starts_with("ppt/media/"))
+            .count(),
+        pictures * 2
+    );
     let mut xml = String::new();
     zip.by_name("ppt/slides/slide1.xml")
         .unwrap()
@@ -428,7 +436,9 @@ fn inline_cell_pictures_preserve_the_surrounding_paragraph() {
     assert_eq!(ts.len(), 1);
     assert_eq!(ts[0].cells[0].paragraphs.len(), 1);
     assert_eq!(text(&ts[0].cells[0]), "Before \t after");
-    assert!(xml(&p).contains("<p:grpSp>"));
+    let s = xml_with_pictures(&p, 1);
+    assert!(s.contains("<p:grpSp>"));
+    assert_eq!(s.matches("<p:pic>").count(), 1);
 }
 
 #[test]
@@ -466,7 +476,7 @@ fn inline_pictures_do_not_change_unrelated_table_text_layout() {
     assert!(t.cells[1].paragraphs[0].lines.is_empty());
     assert_eq!(t.cells[1].paragraphs[0].alignment, "r");
     assert!(!t.cells[1].paragraphs[0].runs[0].advances.is_empty());
-    xml(&same_table);
+    xml_with_pictures(&same_table, 1);
 }
 
 #[test]

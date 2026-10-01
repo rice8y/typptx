@@ -588,6 +588,7 @@ fn image(
                 bounds: local,
                 clip: None,
                 extension: extension.into(),
+                svg: None,
                 bytes,
             }]
         }
@@ -635,3 +636,6 @@ fn image(
         ],
     )])
 }
+
+#[cfg(test)]
+mod tests;

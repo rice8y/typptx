@@ -907,76 +907,6 @@ fn pdfpc_notes_use_physical_page_indices_without_duplication() {
     );
 }
 
-fn svg_source(svg: &str) -> String {
-    format!(
-        "#image(bytes({}), format: \"svg\", width: 200pt)",
-        serde_json::to_string(svg).unwrap()
-    )
-}
-
-#[test]
-fn embedded_svg_paths_become_individual_shapes_with_transforms_and_opacity() {
-    let p = compile(&svg_source(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120"><g transform="translate(10 20)"><rect width="80" height="40" fill="#2563eb" fill-opacity="0.5"/><path d="M0 60 Q40 20 80 60" fill="none" stroke="red" stroke-width="2" stroke-dasharray="4 2"/></g><circle cx="150" cy="60" r="25" fill="gold"/></svg>"##,
-    ));
-    assert!(p.diagnostics.is_empty(), "{:?}", p.diagnostics);
-    let shapes: Vec<_> = p.slides[0]
-        .elements
-        .iter()
-        .filter_map(|e| match e {
-            Element::Shape(s) => Some(s),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(shapes.len(), 3);
-    assert!((shapes[0].bounds.x - 35.).abs() < 0.01);
-    assert!((shapes[0].bounds.width - 80.).abs() < 0.01);
-    assert!(matches!(
-        shapes[0].fill,
-        Some(Brush::Solid {
-            color: [37, 99, 235, 128]
-        })
-    ));
-    assert!(
-        shapes[1]
-            .commands
-            .iter()
-            .any(|p| matches!(p, PathCommand::Cubic(_)))
-    );
-    let s = xml(&p);
-    assert_eq!(s.matches("<a:custGeom>").count(), 3);
-    assert!(s.contains("<a:custDash>"));
-}
-
-#[test]
-fn svg_compositing_is_reported_without_silent_rasterization() {
-    let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120"><defs><filter id="f"><feGaussianBlur stdDeviation="3"/></filter></defs><g filter="url(#f)"><rect width="80" height="80"/></g></svg>"#;
-    let p = compile(&svg_source(svg));
-    assert!(!p.diagnostics.is_empty());
-    assert!(pptx::write(&p).is_err());
-}
-
-#[test]
-fn svg_horizontal_and_vertical_lines_have_valid_path_dimensions() {
-    let p = compile(&svg_source(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120"><path d="M10 10 H180 M100 20 V100" fill="none" stroke="black"/><path d="M10 110 H180" stroke="red"/><path d="M190 10 V110" stroke="blue"/></svg>"#,
-    ));
-    assert!(p.diagnostics.is_empty(), "{:?}", p.diagnostics);
-    let s = xml(&p);
-    let d = roxmltree::Document::parse(&s).unwrap();
-    assert_eq!(
-        d.descendants()
-            .filter(|n| n.tag_name().name() == "path")
-            .count(),
-        3
-    );
-    for path in d.descendants().filter(|n| n.tag_name().name() == "path") {
-        for dim in ["w", "h"] {
-            assert!(path.attribute(dim).unwrap().parse::<i64>().unwrap() > 0);
-        }
-    }
-}
-
 #[test]
 fn table_spans_preserve_the_logical_grid_and_store_text_only_at_the_origin() {
     let p = compile(
@@ -1323,37 +1253,4 @@ fn unsupported_native_export_never_succeeds_with_svg() {
             .iter()
             .any(|e| matches!(e, Element::Drawing { .. }))
     );
-}
-
-#[test]
-fn svg_vertical_text_keeps_one_paragraph_per_source_chunk() {
-    let p = compile(&svg_source(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><text x="60" y="15" font-family="Arial" font-size="20" writing-mode="tb">Vertical ABC</text><text x="130" y="100" font-family="Arial" font-size="20" writing-mode="tb" text-anchor="middle">ABC</text></svg>"#,
-    ));
-    assert!(p.diagnostics.is_empty(), "{:?}", p.diagnostics);
-    let texts: Vec<_> = p.slides[0]
-        .elements
-        .iter()
-        .flat_map(Element::walk)
-        .filter_map(|e| match e {
-            Element::Text(t) => Some(t),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(texts.len(), 2);
-    assert_eq!(texts[0].vertical.as_deref(), Some("vert"));
-    assert_eq!(texts[0].paragraphs.len(), 1);
-    assert_eq!(
-        texts[0].paragraphs[0]
-            .runs
-            .iter()
-            .map(|r| r.text.as_str())
-            .collect::<String>(),
-        "Vertical ABC"
-    );
-    assert!((texts[0].bounds.y - 15.).abs() < 0.01);
-    assert!(texts[1].bounds.y < 100.);
-    let s = xml(&p);
-    assert_eq!(s.matches("vert=\"vert\"").count(), 2);
-    assert!(!s.contains("<p:pic>"));
 }

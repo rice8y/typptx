@@ -94,7 +94,7 @@ fn collect_item_fonts(
     used: &HashSet<(String, bool, bool)>,
     fonts: &mut BTreeMap<(String, bool, bool), (usize, FontInstance)>,
 ) {
-    use typst::visualize::{ImageKind, Paint};
+    use typst::visualize::Paint;
     match item {
         FrameItem::Text(text) => {
             let info = text.font.info();
@@ -105,23 +105,6 @@ fn collect_item_fonts(
             );
             if used.contains(&key) {
                 fonts.entry(key).or_insert((page, text.font.clone()));
-            }
-        }
-        FrameItem::Image(image, _, _) => {
-            if let ImageKind::Svg(svg) = image.kind() {
-                collect_svg_fonts(svg.tree(), page, used, fonts);
-            } else if let ImageKind::Pdf(pdf) = image.kind() {
-                for font in crate::graphics::pdf::fonts(pdf) {
-                    let info = font.info();
-                    let key = (
-                        family(&font),
-                        !baked(&font) && info.variant.weight.to_number() >= 600,
-                        !baked(&font) && info.variant.style != FontStyle::Normal,
-                    );
-                    if used.contains(&key) {
-                        fonts.entry(key).or_insert((page, font));
-                    }
-                }
             }
         }
         FrameItem::Group(g) => {
@@ -285,56 +268,6 @@ fn be16(data: &[u8], at: usize) -> Option<u16> {
 }
 fn be32(data: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_be_bytes(data.get(at..at + 4)?.try_into().ok()?))
-}
-
-fn collect_svg_fonts(
-    tree: &usvg::Tree,
-    page: usize,
-    used: &HashSet<(String, bool, bool)>,
-    fonts: &mut BTreeMap<(String, bool, bool), (usize, FontInstance)>,
-) {
-    fn sizes(group: &usvg::Group, out: &mut Vec<(usvg::fontdb::ID, f64)>) {
-        for node in group.children() {
-            match node {
-                usvg::Node::Text(t) => {
-                    for span in t.layouted() {
-                        for glyph in &span.positioned_glyphs {
-                            out.push((glyph.font, f64::from(glyph.font_size())));
-                        }
-                    }
-                }
-                usvg::Node::Group(g) => sizes(g, out),
-                _ => (),
-            }
-            node.subroots(|root| sizes(root, out));
-        }
-    }
-    let mut instances = Vec::new();
-    sizes(tree.root(), &mut instances);
-    for (id, size) in instances {
-        let font = tree
-            .fontdb()
-            .with_face_data(id, |data, index| {
-                typst::text::Font::new(typst::foundations::Bytes::new(data.to_vec()), index)
-            })
-            .flatten();
-        if let Some(font) = font {
-            let font = font.clone().instantiate(
-                font.info().variant,
-                typst::layout::Abs::pt(size),
-                &Default::default(),
-            );
-            let info = font.info();
-            let key = (
-                family(&font),
-                !baked(&font) && info.variant.weight.to_number() >= 600,
-                !baked(&font) && info.variant.style != FontStyle::Normal,
-            );
-            if used.contains(&key) {
-                fonts.entry(key).or_insert((page, font));
-            }
-        }
-    }
 }
 
 #[cfg(test)]

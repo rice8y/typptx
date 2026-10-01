@@ -1,4 +1,4 @@
-//! Place raster images, SVG images, inline objects, and explicit fallbacks.
+//! Place imported images, PDF pages, inline objects, and explicit fallbacks.
 use crate::compiler::capture::{Capture, Kind, Leaf};
 use crate::ir::*;
 use anyhow::{Result, anyhow};
@@ -143,25 +143,12 @@ pub(super) fn native_image(
             if clip.is_empty() {
                 return Ok(vec![]);
             }
-            let bounds = Rect {
-                x: 0.,
-                y: 0.,
-                width: size.x.to_pt(),
-                height: size.y.to_pt(),
-            };
-            if let typst::visualize::ImageKind::Svg(svg) = image.kind() {
-                elements =
-                    crate::graphics::svg::convert_clipped(svg.tree(), bounds, local_dpi, &clip)?;
-            } else if let typst::visualize::ImageKind::Pdf(pdf) = image.kind() {
-                elements = crate::graphics::pdf::convert(pdf, bounds, local_dpi, Some(&clip))?;
-            } else {
-                for element in &mut elements {
-                    if let Element::Picture {
-                        bounds, clip: mask, ..
-                    } = element
-                    {
-                        *mask = crate::geometry::paths::clip_commands(&clip, *bounds);
-                    }
+            for element in &mut elements {
+                if let Element::Picture {
+                    bounds, clip: mask, ..
+                } = element
+                {
+                    *mask = crate::geometry::paths::clip_commands(&clip, *bounds);
                 }
             }
         }
@@ -198,14 +185,12 @@ pub(super) fn native_image(
                 bounds,
                 clip: None,
                 extension: extension.into(),
+                svg: None,
                 bytes: crate::assets::images::resample(raster, bounds, extension, dpi)?,
             }])
         }
-        typst::visualize::ImageKind::Svg(svg) => {
-            crate::graphics::svg::convert(svg.tree(), bounds, dpi)
-        }
-        typst::visualize::ImageKind::Pdf(pdf) => {
-            crate::graphics::pdf::convert(pdf, bounds, dpi, None)
+        typst::visualize::ImageKind::Svg(_) | typst::visualize::ImageKind::Pdf(_) => {
+            Ok(vec![crate::assets::images::vector(image, bounds, dpi)?])
         }
     }
 }
