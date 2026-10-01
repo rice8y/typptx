@@ -1,16 +1,12 @@
 # <img src="docs/assets/logo.svg" alt="Typptx" width="100%">
 
-Typptx is a command-line tool that converts Typst to PowerPoint with editable text, lists, tables, equations, and vector shapes.
-
-CeTZ and Typst drawing primitives become editable shapes. Imported images, including SVG and PDF pages, stay individual pictures. SVG and PDF pages retain vector graphics within each picture.
-
-Typptx has the following features:
+Typptx converts Typst documents into editable PowerPoint presentations.
 
 - Editable text, lists, and tables
 - Native click animations for Touying and Polylux overlays
 - Editable vector shapes from Typst and CeTZ drawings
 - Editable Office Math or Typst-rendered SVG equations
-- Image import with vector graphics preserved in SVG and PDF pictures
+- SVG and PDF images with vector graphics preserved
 - Hyperlinks and speaker notes
 - Font embedding with support for variable fonts
 
@@ -63,30 +59,15 @@ typptx slides.typ -o slides.pptx
 
 See `typptx --help` for all options.
 
-Touying and Polylux overlays become click states within one PowerPoint slide.
-Each click reproduces the next overlay using Appear and Disappear effects,
-including content replacement and cover-color changes. Text, tables, equations,
-and graphics remain editable. Internal links are remapped to the combined slides,
-and repeated speaker notes are collected once.
-If an animated Touying slide overflows onto several source pages, those pages become
-additional click states in their original order.
-
-Use `--animations slides` to keep every overlay as a separate static slide for
-printing or PDF export. The slide package's own handout mode is also respected.
-
 ## Limitations
 
-- Layout may differ from Typst.
-- Centered lists and lists with complex layouts use separate text boxes. Numbering does not update automatically across those boxes.
-- Inline graphics and highlight backgrounds are separate objects. Editing text does not move or resize them automatically.
-- Cells containing centered lists or other complex layouts may use separate text and graphics grouped with the table.
-- Rotated or reflected native tables, text on paths, and some equations are unsupported.
-- Unsupported content stops conversion by default. Image fallbacks lose internal editability.
+- Layout may differ from Typst; all pages must have the same dimensions.
+- Centered or complex lists use separate text boxes without automatic renumbering. Complex table cells may also use separate objects.
+- Inline graphics and highlights do not follow text edits.
+- Rotated or reflected tables, text on paths, and some equations require image fallback, which loses editability. Enable it with `--allow-image-fallback`.
 - Fonts that cannot be embedded must be installed locally.
-- All pages must have the same dimensions.
-- Animation changes are discrete; motion paths and timed interpolation are not generated.
-- Content that changes between animation steps uses separate editable objects. These can overlap in PowerPoint's editing and print views; edits to one variant do not update the others.
-- Links to a particular overlay do not select its animation step within the combined slide.
+- Animations use discrete states. Changed content uses separate objects that overlap in editing and print views and must be edited independently.
+- Links target slides, not individual animation steps.
 
 ## License
 
