@@ -7,7 +7,7 @@ description = "Export Typst documents to structurally editable PowerPoint presen
 license = "MIT"
 repository = "https://github.com/rice8y/typptx"
 readme = "README.md"
-include = ["/src/**", "/build.rs", "/vendor/**", "/tests/**", "/tools/**", "/assets/**", "/README.md", "/LICENSE", "/Cargo.lock"]
+include = ["/src/**", "/build.rs", "/vendor/**", "/tests/**", "/tools/**", "/assets/**", "/README.md", "/LICENSE", "/Cargo.lock", "!**/__pycache__/**", "!**/*.py[co]"]
 
 [dependencies]
 anyhow = "1"

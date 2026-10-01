@@ -16,9 +16,6 @@ Typptx has the following features:
 
 ### From crates.io
 
-> [!NOTE]
-> v0.1.0 is currently under development and has not yet been published to crates.io.
-
 Requires Rust 1.93+ and a C++17 compiler (MSVC on Windows). HarfBuzz is bundled in the crate.
 
 ```sh
