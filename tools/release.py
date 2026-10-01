@@ -33,7 +33,7 @@ def package_binary(root: Path, binary: Path, platform: str, version: str, output
         executable: binary,
         "README.md": root / "README.md",
         "LICENSE": root / "LICENSE",
-        "docs/assets/logo.svg": root / "docs/assets/logo.svg",
+        "assets/logo.svg": root / "assets/logo.svg",
         "licenses/hb-subset-MIT.md": root / "vendor/hb-subset/LICENSE.md",
         "licenses/HarfBuzz-COPYING": root / "vendor/hb-subset/harfbuzz/COPYING",
     }

@@ -51,7 +51,7 @@ class ReleaseTests(unittest.TestCase):
                     self.assertEqual(bundle.read(executable), binary.read_bytes())
                     self.assertEqual(stat.S_IMODE(bundle.getinfo(executable).external_attr >> 16), 0o755)
                     self.assertEqual(bundle.read("LICENSE"), (release.ROOT / "LICENSE").read_bytes())
-                    self.assertIn("docs/assets/logo.svg", bundle.namelist())
+                    self.assertIn("assets/logo.svg", bundle.namelist())
                     self.assertIn("licenses/HarfBuzz-COPYING", bundle.namelist())
                     self.assertEqual(len(bundle.namelist()), 6)
 
