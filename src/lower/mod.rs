@@ -1,4 +1,5 @@
 //! Lower compiled Typst pages to the portable presentation model.
+mod animation;
 mod bibliography;
 mod links;
 mod lists;
@@ -31,12 +32,22 @@ pub enum MathFormat {
 
 #[derive(Default)]
 pub struct Options {
+    pub animations: AnimationFormat,
     pub allow_image_fallback: bool,
     pub math_format: MathFormat,
     /// Maximum resolution of original raster images at their placed size.
     /// Also sets the PNG preview and fallback rendering DPI. None preserves
     /// original raster bytes and uses 144 DPI for rendered PNGs. Must be positive.
     pub image_dpi: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
+pub enum AnimationFormat {
+    /// Combine package overlays into native click animations.
+    #[default]
+    Native,
+    /// Keep each compiled overlay as a separate static slide.
+    Slides,
 }
 
 pub fn convert(document: &PagedDocument) -> Result<Presentation> {
@@ -96,7 +107,7 @@ fn convert_document(
     };
     let notes = crate::compiler::notes::extract(document)?;
     let mut output = Presentation {
-        schema_version: 18,
+        schema_version: 19,
         slides: Vec::new(),
         diagnostics: Vec::new(),
         fonts: Vec::new(),
@@ -219,6 +230,7 @@ fn convert_document(
             elements: Vec::new(),
             notes: notes[page_idx].clone(),
             links: Vec::new(),
+            animation: None,
         };
         let background = match page.fill_or_white() {
             Some(Paint::Solid(color)) => {
@@ -410,6 +422,9 @@ fn convert_document(
     }
     if embed_fonts {
         crate::assets::fonts::collect(&font_capture, document, &mut output);
+        if options.animations == AnimationFormat::Native {
+            animation::combine(&mut output, &crate::compiler::overlays::groups(document)?)?;
+        }
     }
     Ok(output)
 }

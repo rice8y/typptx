@@ -26,6 +26,31 @@ Export `powerpoint.pdf` with the desktop PowerPoint local PDF exporter. On macOS
 
 `--baseline reviewed-report.json` additionally compares line breaks and glyph origins against a reviewed PDF observation. Keep separate baselines for each Office/OS/font environment. The tool never updates baselines automatically. JSON observations record artifact SHA-256 hashes.
 
+### Animation playback
+
+Build `tests/fixtures/powerpoint/animations.typ` with the default animation mode.
+Its seven source pages become three PowerPoint slides. Inspect slideshow playback:
+
+- Slide 1 initially shows the title, `Always visible`, and `Visible on steps one
+  and three`. One click reveals `Second step` and replaces the transient text.
+  The next click restores the original transient text and reveals the equation.
+  Verify that the Left arrow returns to the preceding state.
+- Slide 2 starts with its title. The first click reveals the native table; the
+  second reveals the blue rectangle. Change `EDITME` to `EDITED` in the table,
+  save a separate copy, close and reopen it, and repeat both clicks.
+- Slide 3 is static. It follows the last animation step on slide 2.
+
+Also build `tests/fixtures/polylux/animation-cases.typ`. The first click on slide
+1 must leave the appearance unchanged; the second reveals `Appears after two
+clicks`. The link on slide 2 must reach slide 3, and the notes must contain
+`Shared package note` once, followed by `Second step note`. Repeat the empty
+click check after saving and reopening. Empty steps use a transparent shape
+named `Animation pause`, because PowerPoint discards empty timing nodes.
+
+Run `cargo test --test animations` for package and source-state checks. The PDF
+checker above does not validate animation playback. To inspect each source
+state as a printable page, also export with `--animations slides`.
+
 ### Fixture manifest
 
 `links-markers.typ` and `links-markers.json` cover source hyperlink colors and

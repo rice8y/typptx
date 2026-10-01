@@ -214,7 +214,7 @@ pub enum Brush {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", content = "points", rename_all = "snake_case")]
 pub enum PathCommand {
     Move([f64; 2]),
@@ -233,7 +233,7 @@ pub struct Stroke {
     pub miter_limit: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct VectorShape {
     pub bounds: Rect,
     pub commands: Vec<PathCommand>,
@@ -264,7 +264,7 @@ pub enum Bullet {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Paragraph {
     #[serde(default)]
     pub rtl: bool,
@@ -290,7 +290,7 @@ pub struct Paragraph {
     pub break_latin: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ParagraphLine {
     /// Realized start of the line in slide coordinates.
     pub x: f64,
@@ -301,7 +301,7 @@ pub struct ParagraphLine {
     pub spacing: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TextBlock {
     /// DrawingML text orientation; absent for ordinary horizontal paragraphs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -319,7 +319,7 @@ pub struct TextBlock {
     pub wrap: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TableCell {
     pub wrap: bool,
     pub row: usize,
@@ -334,7 +334,7 @@ pub struct TableCell {
     pub vertical_alignment: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Table {
     pub source_id: String,
     pub bounds: Rect,
@@ -346,7 +346,7 @@ pub struct Table {
     pub vertical_borders: Vec<Vec<Option<Stroke>>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Element {
     /// A hyperlink owned by its object, so moving or deleting the object also
@@ -392,7 +392,7 @@ pub enum Element {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ObjectGroup {
     pub bounds: Rect,
     pub content_bounds: Rect,
@@ -482,6 +482,22 @@ pub struct Slide {
     /// Independent clickable regions with no drawable source object.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<SlideLink>,
+    /// Ordered click states. Indices refer to this slide's top-level elements.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub animation: Option<Animation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Animation {
+    /// One-based source pages, including the initially visible state.
+    pub source_pages: Vec<usize>,
+    pub steps: Vec<AnimationStep>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnimationStep {
+    /// Elements visible at this step, in their original stacking order.
+    pub visible: Vec<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

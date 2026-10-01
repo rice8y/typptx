@@ -9,7 +9,7 @@ use typptx::{compiler::world::CompilerWorld, lower, pptx};
 #[derive(Parser)]
 #[command(version, about = "Compile Typst to structurally editable PowerPoint")]
 struct Args {
-    /// Typst source file. Each compiled page becomes one slide.
+    /// Typst source file. Package overlays become click animations by default.
     input: PathBuf,
     #[arg(short, long)]
     output: Option<PathBuf>,
@@ -40,6 +40,9 @@ struct Args {
     /// Export equations as editable Office Math or as Typst-rendered SVG pictures.
     #[arg(long, value_enum, default_value_t = lower::MathFormat::Office)]
     math_format: lower::MathFormat,
+    /// Native click animations or a separate static slide for each overlay.
+    #[arg(long, value_enum, default_value_t = lower::AnimationFormat::Native)]
+    animations: lower::AnimationFormat,
     /// Export the original Typst pages as PNGs for visual comparison.
     #[arg(long)]
     reference_dir: Option<PathBuf>,
@@ -77,6 +80,7 @@ fn main() -> Result<()> {
             allow_image_fallback: args.allow_image_fallback,
             image_dpi: args.image_dpi,
             math_format: args.math_format,
+            animations: args.animations,
         },
     )?;
     world.locate_diagnostics(&mut presentation);

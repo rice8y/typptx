@@ -22,7 +22,14 @@ fn compile(name: &str, inputs: &[(&str, &str)]) -> Presentation {
         .compile()
         .unwrap();
     assert!(warnings.is_empty(), "{name}: {warnings:?}");
-    let p = lower::convert(&doc).unwrap();
+    let p = lower::convert_with_options(
+        &doc,
+        &lower::Options {
+            animations: lower::AnimationFormat::Slides,
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert!(p.diagnostics.is_empty(), "{name}: {:?}", p.diagnostics);
     for e in p
         .slides

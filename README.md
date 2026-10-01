@@ -6,9 +6,12 @@ CeTZ and Typst drawing primitives become editable shapes. Imported images, inclu
 
 Typptx has the following features:
 
-- Native list numbering, picture bullets with rotation and cropping, and tables with merged cells
-- Links that follow text and objects when edited
+- Editable text, lists, and tables
+- Native click animations for Touying and Polylux overlays
+- Editable vector shapes from Typst and CeTZ drawings
 - Editable Office Math or Typst-rendered SVG equations
+- Image import with vector graphics preserved in SVG and PDF pictures
+- Hyperlinks and speaker notes
 - Font embedding with support for variable fonts
 
 ## Installation
@@ -49,6 +52,7 @@ typptx slides.typ -o slides.pptx
 | Option | Description |
 | --- | --- |
 | `--math-format office\|svg` | Editable Office Math (default) or SVG equations |
+| `--animations native\|slides` | Click animations (default) or separate static slides for each overlay |
 | `--image-dpi DPI` | Limit embedded image resolution |
 | `--root PATH` | Typst project root |
 | `--font-path PATH` | Additional font directory |
@@ -59,14 +63,30 @@ typptx slides.typ -o slides.pptx
 
 See `typptx --help` for all options.
 
+Touying and Polylux overlays become click states within one PowerPoint slide.
+Each click reproduces the next overlay using Appear and Disappear effects,
+including content replacement and cover-color changes. Text, tables, equations,
+and graphics remain editable. Internal links are remapped to the combined slides,
+and repeated speaker notes are collected once.
+If an animated Touying slide overflows onto several source pages, those pages become
+additional click states in their original order.
+
+Use `--animations slides` to keep every overlay as a separate static slide for
+printing or PDF export. The slide package's own handout mode is also respected.
+
 ## Limitations
 
 - Layout may differ from Typst.
-- Rotated tables, text on paths, and some equations are unsupported.
+- Centered lists and lists with complex layouts use separate text boxes. Numbering does not update automatically across those boxes.
+- Inline graphics and highlight backgrounds are separate objects. Editing text does not move or resize them automatically.
+- Cells containing centered lists or other complex layouts may use separate text and graphics grouped with the table.
+- Rotated or reflected native tables, text on paths, and some equations are unsupported.
 - Unsupported content stops conversion by default. Image fallbacks lose internal editability.
 - Fonts that cannot be embedded must be installed locally.
 - All pages must have the same dimensions.
-- Touying animation steps become static slides.
+- Animation changes are discrete; motion paths and timed interpolation are not generated.
+- Content that changes between animation steps uses separate editable objects. These can overlap in PowerPoint's editing and print views; edits to one variant do not update the others.
+- Links to a particular overlay do not select its animation step within the combined slide.
 
 ## License
 

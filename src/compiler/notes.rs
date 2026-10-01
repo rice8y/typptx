@@ -7,6 +7,7 @@ use typst_layout::PagedDocument;
 pub fn extract(document: &PagedDocument) -> Result<Vec<Option<String>>> {
     let introspector = document.introspector();
     let mut notes = vec![None; document.pages().len()];
+    let mut bundled_notes = vec![false; notes.len()];
     // Touying's published metadata assigns notes to physical pages, including
     // overlays. Reading it avoids re-evaluating source or guessing slide IDs.
     for content in introspector.query(&MetadataElem::ELEM.select()) {
@@ -38,6 +39,7 @@ pub fn extract(document: &PagedDocument) -> Result<Vec<Option<String>>> {
                 "pdfpc speaker note page index {index} is outside the document"
             );
             append(&mut notes[*index as usize], note);
+            bundled_notes[*index as usize] = true;
         }
     }
     // A small, converter-owned interface also works without a slide package:
@@ -47,6 +49,25 @@ pub fn extract(document: &PagedDocument) -> Result<Vec<Option<String>>> {
         let Value::Dict(value) = &metadata.value else {
             continue;
         };
+        // Polylux emits individual pdfpc notes. Touying also emits these, so
+        // skip them when its assembled pdfpc-file already supplied the note.
+        if content
+            .label()
+            .is_some_and(|label| &*label.resolve() == "pdfpc")
+            && matches!(value.get("t"), Ok(Value::Str(tag)) if tag.as_str() == "Note")
+        {
+            if let Ok(Value::Str(note)) = value.get("v")
+                && let Some(position) = content
+                    .location()
+                    .and_then(|loc| introspector.position(loc))
+            {
+                let page = position.page.get() - 1;
+                if !bundled_notes[page] {
+                    append(&mut notes[page], note);
+                }
+            }
+            continue;
+        }
         if !matches!(value.get("typptx"), Ok(Value::Str(tag)) if tag.as_str() == "speaker-note") {
             continue;
         }

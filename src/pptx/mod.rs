@@ -1,5 +1,6 @@
 //! Map the portable presentation model to OOXML through ooxmlsdk.
 //! The SDK owns serialization, package parts, relationships and validation.
+mod animation;
 mod defaults;
 mod drawing;
 mod math;

@@ -2,5 +2,6 @@
 pub mod capture;
 pub(crate) mod diagnostics;
 pub(crate) mod notes;
+pub(crate) mod overlays;
 pub(crate) mod semantics;
 pub mod world;

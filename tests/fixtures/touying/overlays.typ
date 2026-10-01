@@ -4,7 +4,10 @@
 #import themes.simple: *
 #show: simple-theme.with(
   aspect-ratio: "16-9",
-  config-common(handout: sys.inputs.at("handout", default: "false") == "true"),
+  config-common(
+    handout: sys.inputs.at("handout", default: "false") == "true",
+    enable-pdfpc: sys.inputs.at("pdfpc", default: "true") == "true",
+  ),
 )
 #set text(font: "Libertinus Serif")
 #slide[

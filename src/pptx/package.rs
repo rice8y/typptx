@@ -169,15 +169,32 @@ pub fn write(presentation: &Presentation) -> Result<Vec<u8>> {
         rels.prepare_bullets(slide, &slide_part, &mut doc, &mut media)?;
         let mut shapes = defaults::shape_tree();
         let mut next_id = 2;
+        let mut animation_targets = Vec::new();
         for element in &slide.elements {
-            shapes.shape_tree_choice.push(element_node(
+            let mut node = element_node(
                 element,
                 &mut next_id,
                 &mut rels,
                 &mut doc,
                 &slide_part,
                 &mut media,
-            )?);
+            )?;
+            if slide.animation.is_some() {
+                // Office Math compatibility branches need a common animation
+                // target that survives either branch being selected by Office.
+                if matches!(node, p::ShapeTreeChoice::AlternateContent(_)) {
+                    node = element_node(
+                        &Element::group(vec![element.clone()]),
+                        &mut next_id,
+                        &mut rels,
+                        &mut doc,
+                        &slide_part,
+                        &mut media,
+                    )?;
+                }
+                animation_targets.push(super::animation::shape_id(&node));
+            }
+            shapes.shape_tree_choice.push(node);
         }
         for link in &slide.links {
             let mut shape = drawing::vector(&link.region, next_id);
@@ -191,6 +208,18 @@ pub fn write(presentation: &Presentation) -> Result<Vec<u8>> {
                 .shape_tree_choice
                 .push(p::ShapeTreeChoice::Shape(Box::new(shape)));
         }
+        let pause_id = if slide
+            .animation
+            .as_ref()
+            .is_some_and(super::animation::needs_pause)
+        {
+            shapes
+                .shape_tree_choice
+                .push(super::animation::pause_shape(next_id));
+            Some(next_id as u32)
+        } else {
+            None
+        };
         for (index, target) in rels.links.iter().enumerate() {
             let id = format!("link{}", index + 1);
             match target {
@@ -232,6 +261,11 @@ pub fn write(presentation: &Presentation) -> Result<Vec<u8>> {
                     ..Default::default()
                 }),
                 color_map_override: defaults::color_override(),
+                timing: slide
+                    .animation
+                    .as_ref()
+                    .map(|a| super::animation::timing(a, &animation_targets, pause_id))
+                    .transpose()?,
                 ..Default::default()
             },
         )?;
