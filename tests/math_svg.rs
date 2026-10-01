@@ -92,6 +92,37 @@ fn compound_marker_math_stays_inside_the_picture_bullet() {
 }
 
 #[test]
+fn math_only_markers_are_identical_in_office_and_svg_modes() {
+    for marker in ["$x^2$", "$frac(1,2)$", "$sqrt(x)$"] {
+        let doc = document(&format!(
+            "#set list(marker:[{marker}])\n- First\n- Second\n\n$y^2$"
+        ));
+        let office = lower::convert(&doc).unwrap();
+        let vector = svg(&doc, None);
+        assert!(office.diagnostics.is_empty(), "{:?}", office.diagnostics);
+        let markers = |p: &Presentation| {
+            p.slides
+                .iter()
+                .flat_map(|s| &s.elements)
+                .flat_map(Element::walk)
+                .filter_map(|e| match e {
+                    Element::Text(t) if t.role == "list" => Some(t),
+                    _ => None,
+                })
+                .flat_map(|t| &t.paragraphs)
+                .filter_map(|p| match &p.bullet {
+                    Some(Bullet::Picture { svg, .. }) => svg.clone(),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(markers(&office).len(), 2);
+        assert_eq!(markers(&vector), markers(&office));
+        assert_eq!(images(&vector).len(), 1);
+    }
+}
+
+#[test]
 fn office_is_default_and_svg_keeps_native_text_lists_and_tables() {
     let doc = document(
         "Inline $frac(a,b)$ after.\n\n$ frac(a,b) + sqrt(x) $\n\n- Before $x^2$ after.\n- Second item\n\n#table(columns:2,[$frac(a,b)$],[after])",

@@ -166,6 +166,12 @@ impl Leaf {
     }
 }
 
+#[derive(Clone)]
+struct CellContinuation {
+    stack: Vec<usize>,
+    text_styles: Vec<(Location, bool, f64, f64)>,
+}
+
 #[derive(Default, Clone)]
 pub struct Capture {
     /// Resolved targets indexed by the semantic link-marker node. Text and
@@ -189,6 +195,9 @@ pub struct Capture {
     text_styles: Vec<(Location, bool, f64, f64)>,
     /// Page decorations interrupt, but do not belong to, continued body tags.
     page_artifacts: Vec<(Location, Vec<usize>)>,
+    /// Each split cell owns its open tags and styles across physical pages.
+    /// They must not leak into table borders or neighboring cell fragments.
+    cell_continuations: HashMap<usize, CellContinuation>,
     locations: HashMap<Location, usize>,
 }
 
@@ -405,9 +414,28 @@ impl Capture {
                         .filter(|&idx| {
                             self.nodes[idx].kind == Kind::Cell && !self.stack.contains(&idx)
                         });
-                    if let Some(idx) = inherited_cell {
-                        self.stack.push(idx);
-                    }
+                    let cell_context = inherited_cell.map(|idx| {
+                        let context = self.cell_continuations.remove(&idx).unwrap_or_else(|| {
+                            let mut stack = vec![idx];
+                            let mut parent = self.nodes[idx].parent;
+                            while let Some(i) = parent {
+                                stack.push(i);
+                                parent = self.nodes[i].parent;
+                            }
+                            stack.reverse();
+                            CellContinuation {
+                                stack,
+                                text_styles: self.text_styles.clone(),
+                            }
+                        });
+                        CellContinuation {
+                            stack: std::mem::replace(&mut self.stack, context.stack),
+                            text_styles: std::mem::replace(
+                                &mut self.text_styles,
+                                context.text_styles,
+                            ),
+                        }
+                    });
                     let ts = transform
                         .pre_concat(Transform::translate(position.x, position.y))
                         .pre_concat(group.transform);
@@ -470,12 +498,17 @@ impl Capture {
                         page,
                         Some(paint_geometry),
                     );
-                    // Only undo the inherited parent. Ordinary semantic tags
-                    // may start in this frame and end on a later page.
-                    if let Some(idx) = inherited_cell
-                        && let Some(at) = self.stack.iter().rposition(|&n| n == idx)
-                    {
-                        self.stack.remove(at);
+                    if let Some((idx, outer)) = inherited_cell.zip(cell_context) {
+                        self.cell_continuations.insert(
+                            idx,
+                            CellContinuation {
+                                stack: std::mem::replace(&mut self.stack, outer.stack),
+                                text_styles: std::mem::replace(
+                                    &mut self.text_styles,
+                                    outer.text_styles,
+                                ),
+                            },
+                        );
                     }
                     if let Some(stack) = decoration_stack {
                         self.stack = stack;

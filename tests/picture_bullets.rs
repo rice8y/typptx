@@ -345,3 +345,57 @@ fn transformed_compound_markers_stay_inside_native_table_cells() {
     );
     package(&p, 2);
 }
+
+#[test]
+fn rich_text_and_math_markers_keep_their_realized_appearance() {
+    for marker in [
+        "[#text(fill:red)[A]#text(fill:blue)[B]]",
+        "[$x^2$]",
+        "[$frac(1,2)$]",
+        "rotate(25deg,reflow:true)[X]",
+        "[*Bold*]",
+        "[_Italic_]",
+        "[A#super[2]]",
+        "text(tracking:2pt)[AB]",
+        "text(fill:gradient.linear(red,blue))[AB]",
+        "box(width:8pt,clip:true)[AB]",
+    ] {
+        let p = compile(&format!("#set list(marker:{marker})\n- First\n- Second"));
+        assert_eq!(
+            paragraphs(&p).iter().map(|p| text(p)).collect::<Vec<_>>(),
+            ["First", "Second"]
+        );
+        assert!(
+            paragraphs(&p)
+                .iter()
+                .all(|p| matches!(p.bullet, Some(Bullet::Picture { .. }))),
+            "{marker}"
+        );
+        if marker.contains("fill:blue") {
+            let Some(Bullet::Picture { svg: Some(svg), .. }) = &paragraphs(&p)[0].bullet else {
+                unreachable!()
+            };
+            assert!(
+                svg.contains("#ff4136") && svg.contains("#0074d9"),
+                "both source colors must be retained: {svg}"
+            );
+        }
+        package(&p, 2);
+    }
+}
+
+#[test]
+fn ordinary_styled_numbering_keeps_automatic_numbers() {
+    let p = compile("#set text(weight:\"bold\",style:\"italic\")\n+ First\n+ Second");
+    assert!(
+        paragraphs(&p)
+            .iter()
+            .all(|p| matches!(p.bullet, Some(Bullet::Number { .. })))
+    );
+    let p = compile("#set list(marker:[–])\n- First\n- Second");
+    assert!(
+        paragraphs(&p)
+            .iter()
+            .all(|p| matches!(p.bullet, Some(Bullet::Character { .. })))
+    );
+}

@@ -280,6 +280,128 @@ fn a_cell_split_across_pages_keeps_each_page_native() {
 }
 
 #[test]
+fn lists_in_split_cells_keep_their_items_bullets_and_columns() {
+    for marker in ["[•]", "circle(radius:3pt,fill:blue)", "[$x^2$]"] {
+        let p = compile(&format!(
+            r#"
+#set page(height:135pt,margin:10pt)
+#set list(marker:{marker})
+#table(columns:(210pt,210pt),inset:8pt,
+  [#list(..range(8).map(i=>[Left #i]))],
+  [#list(..range(8).map(i=>[Right #i]))],
+)
+"#
+        ));
+        assert!(p.slides.len() >= 2);
+        let ts = tables(&p);
+        assert_eq!(ts.len(), p.slides.len());
+        for column in 0..2 {
+            let expected: Vec<_> = (0..8)
+                .map(|i| format!("{} {i}", if column == 0 { "Left" } else { "Right" }))
+                .collect();
+            let ps: Vec<_> = ts
+                .iter()
+                .flat_map(|t| &t.cells)
+                .filter(|c| c.column == column)
+                .flat_map(|c| &c.paragraphs)
+                .collect();
+            let actual: Vec<String> = ps
+                .iter()
+                .map(|p| p.runs.iter().map(|r| r.text.as_str()).collect())
+                .collect();
+            assert_eq!(actual, expected, "{marker}");
+            assert!(ps.iter().all(|p| p.bullet.is_some()), "{marker}");
+            for p in &ps {
+                assert!(
+                    (p.margin_left - ps[0].margin_left).abs() < 0.03,
+                    "{marker}: margin {} != {} for {:?}",
+                    p.margin_left,
+                    ps[0].margin_left,
+                    p.runs.iter().map(|r| r.text.as_str()).collect::<String>()
+                );
+                near(p.indent, ps[0].indent);
+            }
+        }
+        assert!(
+            !p.slides
+                .iter()
+                .flat_map(|s| &s.elements)
+                .flat_map(Element::walk)
+                .any(|e| matches!(e, Element::Drawing { .. } | Element::Text(_)))
+        );
+        pptx::write(&p).unwrap();
+    }
+}
+
+#[test]
+fn a_numbered_item_continued_in_a_split_cell_does_not_repeat_its_marker() {
+    let p = compile(
+        r#"
+#set page(height:135pt,margin:10pt)
+#table(columns:300pt,inset:8pt,[
+  + #for i in range(12) [Line #i #linebreak()]
+  + Last
+])
+"#,
+    );
+    assert!(p.slides.len() >= 2);
+    let ps: Vec<_> = tables(&p)
+        .iter()
+        .flat_map(|t| &t.cells)
+        .flat_map(|c| &c.paragraphs)
+        .collect();
+    assert_eq!(ps.iter().filter(|p| p.bullet.is_some()).count(), 2);
+    let actual = ps
+        .iter()
+        .map(|p| p.runs.iter().map(|r| r.text.as_str()).collect::<String>())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let expected: Vec<_> = (0..12)
+        .map(|i| format!("Line {i}"))
+        .chain(["Last".into()])
+        .collect();
+    assert_eq!(actual.lines().map(str::trim).collect::<Vec<_>>(), expected);
+    assert!(matches!(
+        ps.first().unwrap().bullet,
+        Some(Bullet::Number { start: Some(1), .. })
+    ));
+    assert!(matches!(
+        ps.last().unwrap().bullet,
+        Some(Bullet::Number { start: Some(2), .. })
+    ));
+    xml(&p);
+}
+
+#[test]
+fn split_cell_text_styles_do_not_leak_between_columns() {
+    let p = compile(
+        r#"
+#set page(height:135pt,margin:10pt)
+#table(columns:(210pt,210pt),inset:8pt,
+  text(tracking:1pt,fill:red)[#list(..range(8).map(i=>[Left #i]))],
+  [#list(..range(8).map(i=>[Right #i]))],
+)
+"#,
+    );
+    assert!(p.slides.len() > 1);
+    for t in tables(&p) {
+        for cell in &t.cells {
+            let tracking = if cell.column == 0 { 1. } else { 0. };
+            let color = if cell.column == 0 {
+                [255, 65, 54, 255]
+            } else {
+                [0, 0, 0, 255]
+            };
+            for run in cell.paragraphs.iter().flat_map(|p| &p.runs) {
+                assert_eq!(run.style.letter_spacing, tracking);
+                assert_eq!(run.style.color, color);
+            }
+        }
+    }
+    pptx::write(&p).unwrap();
+}
+
+#[test]
 fn nested_tables_remain_native_and_grouped_with_their_parent() {
     let p = compile("#table(columns:300pt,[Before\n\n#table(columns:2,[A],[B])\n\nAfter])");
     let ts = tables(&p);

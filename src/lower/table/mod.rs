@@ -6,7 +6,7 @@ use crate::compiler::capture::{Capture, Kind};
 use crate::graphics::rgba;
 use crate::ir::*;
 use crate::lower::Options;
-use crate::lower::lists::{list, owner_list};
+use crate::lower::lists::{list_in_region, owner_list};
 use crate::lower::table::cells::{cell_font_metrics, cell_text_edges, container};
 use crate::lower::text::{paragraph, script_metrics, validate_text_leaves};
 use anyhow::{Result, anyhow, ensure};
@@ -50,6 +50,28 @@ pub(super) fn table(
         let column_span = placement.column_span;
         let row_span = placement.row_span;
         ensure!(column_span > 0 && row_span > 0, "invalid table cell span");
+        let sides = cell
+            .content
+            .field_by_name("inset")
+            .ok()
+            .and_then(|v| v.cast::<Smart<Sides<Option<Rel<Length>>>>>().ok())
+            .ok_or_else(|| anyhow!("unresolved cell inset"))?
+            .unwrap_or_default();
+        let mut inset = [0.0; 4];
+        for (i, side) in [sides.top, sides.right, sides.bottom, sides.left]
+            .into_iter()
+            .enumerate()
+        {
+            if let Some(value) = side {
+                let basis = if i % 2 == 0 {
+                    placement.bounds.height
+                } else {
+                    placement.bounds.width
+                };
+                inset[i] =
+                    value.abs.at(Abs::pt(layout.font_size)).to_pt() + value.rel.get() * basis;
+            }
+        }
         let body_ids: Vec<_> = cp
             .leaves
             .iter()
@@ -93,7 +115,16 @@ pub(super) fn table(
             .collect();
         let mut parts = BTreeMap::new();
         for i in cell_lists {
-            let list = list(capture, i, page, options)?;
+            // Cell paragraphs use the inset content box as their origin.
+            // A continued list's captured frame can include the outer cell;
+            // using that frame would apply the inset twice after a page break.
+            let content = Rect {
+                x: placement.bounds.x + inset[3],
+                y: placement.bounds.y + inset[0],
+                width: placement.bounds.width - inset[3] - inset[1],
+                height: placement.bounds.height - inset[0] - inset[2],
+            };
+            let list = list_in_region(capture, i, page, options, Some(content))?;
             let ids = &capture.nodes[i].pages[&page].leaves;
             let baselines: Vec<_> = ids
                 .iter()
@@ -168,28 +199,6 @@ pub(super) fn table(
             }
         }
         let mut paragraphs: Vec<_> = parts.into_iter().flat_map(|p| p.0).collect();
-        let sides = cell
-            .content
-            .field_by_name("inset")
-            .ok()
-            .and_then(|v| v.cast::<Smart<Sides<Option<Rel<Length>>>>>().ok())
-            .ok_or_else(|| anyhow!("unresolved cell inset"))?
-            .unwrap_or_default();
-        let mut inset = [0.0; 4];
-        for (i, side) in [sides.top, sides.right, sides.bottom, sides.left]
-            .into_iter()
-            .enumerate()
-        {
-            if let Some(value) = side {
-                let basis = if i % 2 == 0 {
-                    placement.bounds.height
-                } else {
-                    placement.bounds.width
-                };
-                inset[i] =
-                    value.abs.at(Abs::pt(layout.font_size)).to_pt() + value.rel.get() * basis;
-            }
-        }
         let fill = match cell.content.field_by_name("fill") {
             Ok(Value::Color(c)) => Some(Brush::Solid { color: rgba(c) }),
             Ok(Value::None) | Err(_) => None,

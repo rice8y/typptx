@@ -50,6 +50,17 @@ The PDF region checks verify text and wrapping; the visual checks above are
 still required for colors and artwork. Record Windows results only after
 running them on a Windows desktop with PowerPoint installed.
 
+`continued-lists.typ` and `continued-lists.json` cover a table whose two cells
+continue onto a second slide, followed by two-color, superscript, fraction and
+rotated text markers. Check that each column contains items 0 through 17 once,
+and that the mathematical markers remain attached to their paragraphs. The
+declared edit changes `Left-12` to `Edited-12` in the continued cell on slide 2.
+Glyph positions also check that cell padding is not added again after the page
+break. The first body characters start at 55.318pt and 317.4734pt in the source;
+the manifest records reviewed Office glyph origins with a 0.25pt tolerance.
+Build this fixture once with default math output and once with
+`--math-format svg`; the markers should look the same in both.
+
 `tests/fixtures/powerpoint/text-layout.json` is a complete example. Slide/table/row/column indexes are one-based. Table order follows native shape order, including groups. All dimensions are points. Region boxes are `[left, top, right, bottom]` in PDF page coordinates. Regions must include the entire area where an unwanted wrapped line could appear. Use `content_box_pt` for a smaller permitted text box inside that search region.
 
 `lines` checks extracted text and wrapping; `line_count` checks only the number of lines. `first_line_x_pt` checks glyph origins against source measurements. `ignore_trailing_space_origins` excludes invisible trailing spaces from that check while preserving them in the PDF observation. `min_font_pt` can exclude nearby small labels. Plain left-to-right text is grouped by glyph top coordinate (`line_tolerance_pt`, default 1.5). Do not apply that line grouping to mixed superscripts, equations, combining marks, right-to-left or vertical text; give plain text its own region or use a separately reviewed visual check. A change in PDF glyph mapping requires review rather than a silently accepted baseline update.

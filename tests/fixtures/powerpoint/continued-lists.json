@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "source": "continued-lists.typ",
+  "purpose": "Lists continuing in separate native table cells, rich text markers, and mathematical markers.",
+  "slides": 3,
+  "slide_size_pt": [600, 400],
+  "package": {"native_tables": 2, "pictures": 0},
+  "regions": [
+    {"id":"left-first","slide":1,"box_pt":[50,65,275,355],"lines":["Left-0","Left-1","Left-2","Left-3","Left-4","Left-5","Left-6","Left-7","Left-8","Left-9","Left-10","Left-11"],"first_line_x_pt":[55.3,64.8,72.85,78.475,84.225,90.31]},
+    {"id":"right-first","slide":1,"box_pt":[313,65,520,355],"lines":["Right-0","Right-1","Right-2","Right-3","Right-4","Right-5","Right-6","Right-7","Right-8","Right-9","Right-10","Right-11"],"first_line_x_pt":[317.45,328.015,332.8894,341.89,351.575,357.265,363.35]},
+    {"id":"left-continued","slide":2,"box_pt":[50,35,275,180],"lines":["Left-12","Left-13","Left-14","Left-15","Left-16","Left-17"],"first_line_x_pt":[55.3,64.8,72.85,78.475,84.225,90.31,98.675]},
+    {"id":"right-continued","slide":2,"box_pt":[313,35,520,180],"lines":["Right-12","Right-13","Right-14","Right-15","Right-16","Right-17"],"first_line_x_pt":[317.45,328.015,332.8894,341.89,351.575,357.265,363.35,371.725]},
+    {"id":"colored-marker-body","slide":3,"box_pt":[60,80,550,130],"line_count":2},
+    {"id":"superscript-marker-body","slide":3,"box_pt":[55,150,550,200],"line_count":2},
+    {"id":"fraction-marker-body","slide":3,"box_pt":[48,218,550,270],"line_count":2},
+    {"id":"rotated-marker-body","slide":3,"box_pt":[53,295,550,348],"line_count":2}
+  ],
+  "edits": [
+    {"slide":2,"table":1,"row":1,"column":1,"before":"Left-12\nLeft-13\nLeft-14\nLeft-15\nLeft-16\nLeft-17","after":"Edited-12\nLeft-13\nLeft-14\nLeft-15\nLeft-16\nLeft-17","region":"left-continued"}
+  ]
+}

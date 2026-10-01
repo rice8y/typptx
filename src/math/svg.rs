@@ -34,19 +34,10 @@ pub fn prepare(
                 if capture.nodes[i].kind == Kind::Equation {
                     return None;
                 }
-                // A graphical list label is rendered as one picture bullet.
+                // A mathematical list label is rendered as one picture bullet.
                 // Keep its equations in that picture instead of extracting
                 // independently positioned math images from the marker.
-                if capture.nodes[i].kind == Kind::Label
-                    && capture.nodes[i].pages.iter().any(|(&page, np)| {
-                        np.leaves.iter().any(|&id| {
-                            matches!(
-                                capture.pages[page][id].item,
-                                FrameItem::Image(..) | FrameItem::Shape(..)
-                            )
-                        })
-                    })
-                {
+                if capture.nodes[i].kind == Kind::Label {
                     return None;
                 }
                 parent = capture.nodes[i].parent;

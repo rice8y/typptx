@@ -15,6 +15,16 @@ pub(super) fn list(
     page: usize,
     options: &crate::lower::Options,
 ) -> Result<TextBlock> {
+    list_in_region(capture, idx, page, options, None)
+}
+
+pub(super) fn list_in_region(
+    capture: &Capture,
+    idx: usize,
+    page: usize,
+    options: &crate::lower::Options,
+    region: Option<Rect>,
+) -> Result<TextBlock> {
     let (prepared, markers) = picture_markers(capture, idx, page, options.image_dpi)?;
     let capture = prepared.as_ref();
     let node = &capture.nodes[idx];
@@ -81,7 +91,7 @@ pub(super) fn list(
     let mut measured = Vec::new();
     let mut seen_bodies = HashSet::new();
     let mut last_numbers: HashMap<usize, (u32, u32)> = HashMap::new();
-    let region = np.layout.map(|(_, b)| b).unwrap_or(np.context);
+    let region = region.unwrap_or_else(|| np.layout.map(|(_, b)| b).unwrap_or(np.context));
     for (body_idx, _, ids) in groups {
         let list_idx =
             owner_list(capture, body_idx).ok_or_else(|| anyhow!("missing enclosing list"))?;
@@ -269,7 +279,74 @@ pub(super) fn list(
     })
 }
 
-/// Replace graphical labels with layout placeholders while the list's
+/// Whether a label needs more styling or layout than a character bullet can
+/// carry. Keep simple labels native; render the complete realized marker when
+/// its math, transforms, or per-run formatting would otherwise be discarded.
+fn needs_picture_marker(capture: &Capture, label_idx: usize, page: usize, ids: &[usize]) -> bool {
+    if ids.iter().any(|&id| {
+        let leaf = &capture.pages[page][id];
+        !matches!(leaf.item, FrameItem::Text(_))
+            || !leaf.plain_transform()
+            || capture.nearest(leaf, Kind::Equation).is_some()
+    }) {
+        return true;
+    }
+    let Ok(label) = paragraph(capture, page, ids) else {
+        return true;
+    };
+    if (label.first_baseline - label.last_baseline).abs() > 0.1 {
+        return true;
+    }
+    let Some(first) = label.paragraph.runs.first() else {
+        return false;
+    };
+    // Automatic numbering inherits its paragraph's character properties.
+    // Ordinary bold/italic numbered lists must remain automatically numbered.
+    if let Some(owner) = owner_list(capture, label_idx)
+        && capture.nodes[owner].kind == Kind::Enum
+        && !boolean(&capture.nodes[owner], "reversed")
+        && !boolean(&capture.nodes[owner], "full")
+        && string(&capture.nodes[owner], "numbering")
+            .and_then(|pattern| numbering_scheme(&pattern, 0))
+            .is_some()
+        && let Some(body) = (label_idx + 1..capture.nodes.len()).find(|&i| {
+            capture.nodes[i].kind == Kind::ItemBody && owner_list(capture, i) == Some(owner)
+        })
+        && let Some(np) = capture.nodes[body].pages.get(&page)
+        && let Some(&id) = np
+            .leaves
+            .iter()
+            .find(|&&id| matches!(capture.pages[page][id].item, FrameItem::Text(_)))
+        && let Ok(body) = paragraph(capture, page, &[id])
+        && let Some(body_run) = body.paragraph.runs.first()
+        && label
+            .paragraph
+            .runs
+            .iter()
+            .all(|r| r.math.is_none() && r.style == body_run.style)
+    {
+        return false;
+    }
+    label.paragraph.runs.iter().any(|r| {
+        let s = &r.style;
+        r.math.is_some()
+            || s.font != first.style.font
+            || s.color != first.style.color
+            || s.size != first.style.size
+            || s.bold
+            || s.italic
+            || s.underline
+            || s.strike
+            || s.baseline != 0.
+            || s.letter_spacing != 0.
+            || s.outline.is_some()
+            || s.fill
+                .as_ref()
+                .is_some_and(|fill| !matches!(fill, Brush::Solid { .. }))
+    })
+}
+
+/// Replace rich labels with layout placeholders while the list's
 /// paragraphs are measured. The actual marker is stored as a picture bullet.
 fn picture_markers(
     capture: &Capture,
@@ -299,12 +376,7 @@ fn picture_markers(
             .copied()
             .filter(|&id| capture.pages[page][id].is_drawable())
             .collect();
-        if !ids.iter().any(|&id| {
-            matches!(
-                capture.pages[page][id].item,
-                FrameItem::Image(..) | FrameItem::Shape(..)
-            )
-        }) {
+        if ids.is_empty() || !needs_picture_marker(capture, label, page, &ids) {
             continue;
         }
         let id = ids[0];

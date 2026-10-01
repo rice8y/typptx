@@ -1,5 +1,6 @@
 //! Package versions and source markers are fixed in tests/fixtures.
 use std::{
+    collections::HashSet,
     io::{Cursor, Read},
     path::Path,
     sync::Mutex,
@@ -29,7 +30,10 @@ fn compile(name: &str, inputs: &[(&str, &str)]) -> Presentation {
         .flat_map(|s| s.elements.iter().flat_map(Element::walk))
     {
         assert!(
-            !matches!(e, Element::Drawing { .. } | Element::MathSvg { .. }),
+            !matches!(
+                e,
+                Element::Drawing { .. } | Element::MathSvg { .. } | Element::Picture { .. }
+            ),
             "{name}: fallback"
         );
     }
@@ -38,9 +42,34 @@ fn compile(name: &str, inputs: &[(&str, &str)]) -> Presentation {
         pptx::write(&p).unwrap_or_else(|e| panic!("{name}: {e:#}")),
     ))
     .unwrap();
-    assert!(
-        !zip.file_names().any(|n| n.starts_with("ppt/media/")),
-        "{name}: unexpected media"
+    let expected_media: HashSet<Vec<u8>> = p
+        .slides
+        .iter()
+        .flat_map(paragraphs)
+        .filter_map(|p| match &p.bullet {
+            Some(Bullet::Picture { bytes, svg, .. }) => Some(
+                std::iter::once(bytes.clone()).chain(svg.iter().map(|s| s.as_bytes().to_vec())),
+            ),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    let names: Vec<_> = zip
+        .file_names()
+        .filter(|n| n.starts_with("ppt/media/"))
+        .map(str::to_owned)
+        .collect();
+    let actual_media: HashSet<Vec<u8>> = names
+        .iter()
+        .map(|name| {
+            let mut bytes = Vec::new();
+            zip.by_name(name).unwrap().read_to_end(&mut bytes).unwrap();
+            bytes
+        })
+        .collect();
+    assert_eq!(
+        actual_media, expected_media,
+        "{name}: media must belong to native picture bullets"
     );
     for page in 1..=p.slides.len() {
         let mut xml = String::new();
@@ -49,6 +78,10 @@ fn compile(name: &str, inputs: &[(&str, &str)]) -> Presentation {
             .read_to_string(&mut xml)
             .unwrap();
         let tree = roxmltree::Document::parse(&xml).unwrap();
+        assert!(
+            !tree.descendants().any(|n| n.tag_name().name() == "pic"),
+            "{name}: standalone picture"
+        );
         assert!(
             tree.descendants().any(|n| n.tag_name().name() == "txBody"),
             "{name}: page {page}"
@@ -105,14 +138,21 @@ fn structure(package: &str) {
         .filter_map(|p| p.bullet.as_ref())
         .collect();
     // Diatypst uses a function that paints bold, colored number markers.
-    // Those keep their literal markers; plain numbering stays automatic.
+    // Those keep their appearance as picture bullets; plain numbering stays automatic.
     let custom_numbers = package == "diatypst";
     assert_eq!(
         bullets
             .iter()
             .filter(|b| matches!(b, Bullet::Character { .. }))
             .count(),
-        if custom_numbers { 5 } else { 3 }
+        3
+    );
+    assert_eq!(
+        bullets
+            .iter()
+            .filter(|b| matches!(b, Bullet::Picture { .. }))
+            .count(),
+        if custom_numbers { 2 } else { 0 }
     );
     assert_eq!(
         bullets
