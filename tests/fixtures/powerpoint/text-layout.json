@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "source": "text-layout.typ",
+  "purpose": "Tracking, mixed cell typography, explicit line breaks, merged cells, and native table editing.",
+  "slides": 2,
+  "slide_size_pt": [
+    720,
+    480
+  ],
+  "package": {
+    "native_tables": 5,
+    "pictures": 0,
+    "math_min": 1,
+    "tables": [
+      {
+        "slide": 1,
+        "table": 1,
+        "columns_pt": [
+          140,
+          180
+        ],
+        "rows_pt": [
+          64,
+          88
+        ]
+      },
+      {
+        "slide": 1,
+        "table": 2,
+        "columns_pt": [
+          300
+        ],
+        "rows_pt": [
+          76,
+          76
+        ]
+      },
+      {
+        "slide": 1,
+        "table": 3,
+        "columns_pt": [
+          160,
+          160
+        ],
+        "rows_pt": [
+          48,
+          48
+        ]
+      },
+      {
+        "slide": 2,
+        "table": 1,
+        "columns_pt": [
+          77.4
+        ],
+        "rows_pt": [
+          100
+        ]
+      },
+      {
+        "slide": 2,
+        "table": 2,
+        "columns_pt": [
+          77.4
+        ],
+        "rows_pt": [
+          100
+        ]
+      }
+    ]
+  },
+  "regions": [
+    {
+      "id": "tracking",
+      "slide": 1,
+      "box_pt": [
+        30,
+        16,
+        160,
+        64
+      ],
+      "lines": [
+        "HHHH"
+      ],
+      "first_line_x_pt": [
+        32,
+        47.6,
+        63.2,
+        78.8
+      ],
+      "position_tolerance_pt": 0.25
+    },
+    {
+      "id": "edit-cell",
+      "slide": 1,
+      "box_pt": [
+        34,
+        82,
+        170,
+        142
+      ],
+      "lines": [
+        "EDIT ME"
+      ]
+    },
+    {
+      "id": "kerned-cell",
+      "slide": 1,
+      "box_pt": [
+        174,
+        82,
+        350,
+        142
+      ],
+      "lines": [
+        "AVATAR"
+      ]
+    },
+    {
+      "id": "multiline",
+      "slide": 1,
+      "box_pt": [
+        34,
+        146,
+        170,
+        230
+      ],
+      "lines": [
+        "First line",
+        "Second line"
+      ]
+    },
+    {
+      "id": "decimals",
+      "slide": 1,
+      "box_pt": [
+        174,
+        146,
+        350,
+        230
+      ],
+      "lines": [
+        "0.95",
+        "1.25"
+      ]
+    },
+    {
+      "id": "merged",
+      "slide": 1,
+      "box_pt": [
+        34,
+        282,
+        350,
+        326
+      ],
+      "lines": [
+        "Merged editable cell"
+      ]
+    },
+    {
+      "id": "tight-explicit",
+      "slide": 2,
+      "box_pt": [
+        34,
+        82,
+        108,
+        178
+      ],
+      "lines": [
+        "HHHH",
+        "HHHH"
+      ],
+      "first_line_x_pt": [
+        40,
+        55.6,
+        71.2,
+        86.8
+      ]
+    },
+    {
+      "id": "tight-soft",
+      "slide": 2,
+      "box_pt": [
+        202,
+        82,
+        276,
+        178
+      ],
+      "lines": [
+        "HHHH",
+        "HHHH"
+      ],
+      "first_line_x_pt": [
+        208,
+        223.6,
+        239.2,
+        254.8
+      ],
+      "ignore_trailing_space_origins": true
+    }
+  ],
+  "edits": [
+    {
+      "slide": 1,
+      "table": 1,
+      "row": 1,
+      "column": 1,
+      "region": "edit-cell",
+      "before": "EDIT ME",
+      "after": "EDIT OK"
+    }
+  ]
+}
