@@ -18,8 +18,8 @@ def release_version(root: Path, tag: str) -> str:
     version = manifest["package"]["version"]
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", version):
         raise ValueError(f"unsupported release version: {version!r}")
-    if tag != f"v-{version}":
-        raise ValueError(f"tag {tag!r} does not match Cargo.toml (expected v-{version})")
+    if tag != f"v{version}":
+        raise ValueError(f"tag {tag!r} does not match Cargo.toml (expected v{version})")
     lock = tomllib.loads((root / "Cargo.lock").read_text(encoding="utf-8"))
     versions = [p["version"] for p in lock["package"] if p["name"] == "typptx" and "source" not in p]
     if versions != [version]:

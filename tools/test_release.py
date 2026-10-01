@@ -26,17 +26,17 @@ class ReleaseTests(unittest.TestCase):
         )
 
     def test_version_matches_tag_and_lock(self):
-        self.assertEqual(release.release_version(self.root, "v-0.1.0"), "0.1.0")
+        self.assertEqual(release.release_version(self.root, "v0.1.0"), "0.1.0")
         self.set_version("0.2.0-rc.1")
-        self.assertEqual(release.release_version(self.root, "v-0.2.0-rc.1"), "0.2.0-rc.1")
+        self.assertEqual(release.release_version(self.root, "v0.2.0-rc.1"), "0.2.0-rc.1")
 
     def test_rejects_wrong_tag_and_stale_lock(self):
-        for tag in ("v0.1.0", "v-0.8.0", "v-../0.1.0"):
+        for tag in ("v-0.1.0", "v0.8.0", "v../0.1.0"):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
                 release.release_version(self.root, tag)
         self.set_version("0.1.0", locked="0.8.0")
         with self.assertRaisesRegex(ValueError, "Cargo.lock"):
-            release.release_version(self.root, "v-0.1.0")
+            release.release_version(self.root, "v0.1.0")
 
     def test_binary_zip_has_executable_and_documentation(self):
         binary = self.root / "binary"
