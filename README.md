@@ -6,7 +6,7 @@ Typptx has the following features:
 
 - Native list numbering and tables with merged cells
 - Editable Office Math or Typst-rendered SVG equations
-- Font embedding, including variable font instances
+- Font embedding with support for variable fonts
 
 ## Installation
 
