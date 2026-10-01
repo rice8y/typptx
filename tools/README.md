@@ -70,6 +70,23 @@ marker indents, the red inline rectangle, the callout's three lines and its
 background, and the numbered items 1 through 4. The list group contains separate
 editable text, shape and table objects; moving the group moves them together.
 
+`paragraph-groups.typ` and `paragraph-groups.json` cover centered lists (including
+RTL, table cells and multiline items), grids and columns inside lists, and
+complete paragraphs containing inline graphics or highlights. Centered list
+markers and their body paragraphs are separate native objects: the body keeps
+its full wrapping width, while the marker stays at the source margin. In table
+cells, this content is grouped with the native table. Numbered marker objects
+retain their source numbers but do not form a shared automatic numbering
+sequence across text boxes.
+
+The declared cell edit changes `EDIT ME` to `EDITED` on slide 3. Also change
+`First` to `Edited` on slide 1 and `Before` to `Ahead` in the first paragraph on
+slide 3. Check that the centered body stays centered, its marker stays at the
+margin, and `Ahead`, the tab for the rectangle, and `after.` remain in one text
+paragraph after saving and reopening. Graphics and highlight backgrounds are
+independently editable shapes; changing text does not move or resize those
+shapes automatically. The PDF regions check both column baselines and wrapping.
+
 `tests/fixtures/powerpoint/text-layout.json` is a complete example. Slide/table/row/column indexes are one-based. Table order follows native shape order, including groups. All dimensions are points. Region boxes are `[left, top, right, bottom]` in PDF page coordinates. Regions must include the entire area where an unwanted wrapped line could appear. Use `content_box_pt` for a smaller permitted text box inside that search region.
 
 `lines` checks extracted text and wrapping; `line_count` checks only the number of lines. `first_line_x_pt` checks glyph origins against source measurements. `ignore_trailing_space_origins` excludes invisible trailing spaces from that check while preserving them in the PDF observation. `min_font_pt` can exclude nearby small labels. Plain left-to-right text is grouped by glyph top coordinate (`line_tolerance_pt`, default 1.5). Do not apply that line grouping to mixed superscripts, equations, combining marks, right-to-left or vertical text; give plain text its own region or use a separately reviewed visual check. A change in PDF glyph mapping requires review rather than a silently accepted baseline update.

@@ -5,6 +5,7 @@ use crate::ir::*;
 use crate::lower::structure::{boolean, integer, string};
 use crate::lower::text::{paragraph, single_line_spacing, text_clip, validate_text_leaves};
 use anyhow::{Result, anyhow, ensure};
+pub(super) use rich::needed as needs_group;
 use std::collections::{HashMap, HashSet};
 use typst::foundations::{StyleChain, StyledElem, Value};
 use typst::layout::FrameItem;
@@ -113,6 +114,7 @@ fn list_blocks(
     });
     ensure!(!groups.is_empty(), "list has no items");
     let mut measured = Vec::new();
+    let mut centered_markers = Vec::new();
     let mut placements = Vec::new();
     let mut seen_bodies = HashSet::new();
     let mut last_numbers: HashMap<usize, (u32, u32)> = HashMap::new();
@@ -154,7 +156,12 @@ fn list_blocks(
                 .find_map(|i| capture.nodes[i].pages.get(&page)?.leaves.first().copied())
                 .unwrap_or(usize::MAX)
         });
-        let paragraph_region = par_idx.map(|p| capture.nodes[p].pages[&page].context);
+        let mut context = capture.nodes[par_idx.unwrap_or(body_idx)].pages[&page].context;
+        if let Some((left, right)) = par_idx.and_then(|p| capture.grid_cell_extent(p, page)) {
+            context.x = left;
+            context.width = right - left;
+        }
+        let paragraph_region = Some(context);
         placements.push((order, paragraph_region, text_clip(capture, page, &ids)?));
         let list_idx =
             owner_list(capture, body_idx).ok_or_else(|| anyhow!("missing enclosing list"))?;
@@ -218,7 +225,10 @@ fn list_blocks(
             p.paragraph.line_spacing = spacing;
         }
         p.paragraph.level = level;
-        if p.paragraph.rtl {
+        if p.paragraph.alignment == "ctr" {
+            p.paragraph.margin_left = (context.x - region.x).max(0.);
+            p.paragraph.margin_right = (region.right() - context.right()).max(0.);
+        } else if p.paragraph.rtl {
             p.paragraph.margin_right = (region.right() - p.right).max(0.0);
         } else {
             p.paragraph.margin_left = (p.x - region.x).max(0.0);
@@ -292,23 +302,22 @@ fn list_blocks(
                             color: style.color,
                             size: style.size,
                         });
-                        measured.push(p);
-                        continue;
+                    } else {
+                        let number = number as u32;
+                        // PowerPoint treats a changed startAt as a new sequence. Keep the
+                        // sequence start on every paragraph so 3,4,5 does not become 3,1,2.
+                        let start = match last_numbers.get(&list_idx) {
+                            Some(&(previous, start)) if previous + 1 == number => start,
+                            _ => number,
+                        };
+                        last_numbers.insert(list_idx, (number, start));
+                        // Separate text boxes have independent numbering sequences.
+                        let start = Some(if separate { number } else { start });
+                        p.paragraph.bullet = Some(Bullet::Number {
+                            scheme: scheme.into(),
+                            start,
+                        });
                     }
-                    let number = number as u32;
-                    // PowerPoint treats a changed startAt as a new sequence. Keep the
-                    // sequence start on every paragraph so 3,4,5 does not become 3,1,2.
-                    let start = match last_numbers.get(&list_idx) {
-                        Some(&(previous, start)) if previous + 1 == number => start,
-                        _ => number,
-                    };
-                    last_numbers.insert(list_idx, (number, start));
-                    // Separate text boxes have independent numbering sequences.
-                    let start = Some(if separate { number } else { start });
-                    p.paragraph.bullet = Some(Bullet::Number {
-                        scheme: scheme.into(),
-                        start,
-                    });
                 } else {
                     let style = &label.paragraph.runs[0].style;
                     p.paragraph.bullet = Some(Bullet::Character {
@@ -317,6 +326,48 @@ fn list_blocks(
                         color: style.color,
                         size: style.size,
                     });
+                }
+                if separate && p.paragraph.alignment == "ctr" {
+                    // Typst centers only the body; Office centers the bullet
+                    // and body together. Keep a native marker paragraph at
+                    // its source anchor, leaving the complete body paragraph
+                    // centered within its original wrapping width.
+                    let mut marker = label.paragraph;
+                    marker.runs.truncate(1);
+                    marker.runs[0].text = "\u{200b}".into();
+                    marker.runs[0].advances.clear();
+                    marker.runs[0].source_width = None;
+                    marker.lines.clear();
+                    marker.rtl = p.paragraph.rtl;
+                    marker.alignment = if marker.rtl { "r" } else { "l" }.into();
+                    marker.level = p.paragraph.level;
+                    marker.bullet = p.paragraph.bullet.take();
+                    marker.indent = 0.;
+                    marker.margin_left = 0.;
+                    marker.margin_right = 0.;
+                    marker.tab_stops.clear();
+                    centered_markers.push((
+                        label_page.leaves[0],
+                        TextBlock {
+                            vertical: None,
+                            source_id: label_node.id(),
+                            role: "list_marker".into(),
+                            clip: text_clip(capture, page, &label_page.leaves)?,
+                            font_scale: None,
+                            bounds: Rect {
+                                x: label.x,
+                                y: label.first_baseline - label.ascent,
+                                width: label.right - label.x,
+                                height: label.last_baseline - label.first_baseline
+                                    + label.ascent
+                                    + label.descent
+                                    + 2.,
+                            },
+                            paragraphs: vec![marker],
+                            wrap: false,
+                        },
+                    ));
+                    p.paragraph.indent = 0.;
                 }
             }
         }
@@ -329,7 +380,7 @@ fn list_blocks(
         measured[i].paragraph.space_after = (gap - measured[i + 1].paragraph.line_spacing).max(0.0);
     }
     if separate {
-        return Ok(measured
+        let blocks = measured
             .into_iter()
             .zip(placements)
             .map(|(mut p, (order, context, clip))| {
@@ -341,14 +392,17 @@ fn list_blocks(
                     height: p.last_baseline - p.first_baseline + p.ascent + p.descent + 2.,
                 };
                 if let Some(context) = context
-                    && context.right() < region.right() - 0.1
+                    && !matches!(p.paragraph.alignment.as_str(), "ctr" | "r")
                 {
-                    // An inset block has its own wrapping width. The longest
-                    // realized line fits inside that block and retains its
-                    // source wraps without borrowing space from the whole list.
-                    bounds.width = p.right - region.x + 0.1;
+                    // Typst can flatten the first column into its parent
+                    // frame. Its longest realized line still bounds the
+                    // available width, including inset callout paragraphs.
+                    bounds.width = context.right().min(p.right + 1.) - region.x;
+                    if p.paragraph.rtl {
+                        p.paragraph.margin_right = (bounds.right() - p.right).max(0.);
+                    }
                 }
-                if matches!(p.paragraph.alignment.as_str(), "ctr" | "r") {
+                if p.paragraph.alignment == "r" {
                     bounds.x = p.x;
                     bounds.width = p.right - p.x + 0.1;
                     p.paragraph.margin_left = 0.;
@@ -367,8 +421,9 @@ fn list_blocks(
                         wrap: !capture.has_fixed_math_layout(page, &np.leaves),
                     },
                 )
-            })
-            .collect());
+            });
+        centered_markers.extend(blocks);
+        return Ok(centered_markers);
     }
     let first = measured.first().unwrap();
     let last = measured.last().unwrap();

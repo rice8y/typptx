@@ -1,6 +1,7 @@
 //! Build native text blocks from captured paragraphs and display-list fragments.
 mod metrics;
 mod paragraph;
+mod shapes;
 mod shaping;
 
 use crate::compiler::capture::{Capture, Kind, Leaf};
@@ -11,6 +12,7 @@ use crate::lower::text::metrics::{code_font_scale, is_raw_block};
 use anyhow::{Result, anyhow, bail, ensure};
 pub(super) use metrics::{script_metrics, single_line_spacing};
 pub(super) use paragraph::{paragraph, push_run};
+pub(super) use shapes::with_shapes;
 use typst::layout::FrameItem;
 
 pub(super) fn fragment_owner(capture: &Capture, leaf: &Leaf) -> Option<usize> {

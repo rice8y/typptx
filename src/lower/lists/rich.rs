@@ -23,10 +23,37 @@ fn body_object(capture: &Capture, leaf: &Leaf) -> bool {
         }
 }
 
-pub(super) fn needed(capture: &Capture, idx: usize, page: usize) -> bool {
+pub(in crate::lower) fn needed(capture: &Capture, idx: usize, page: usize) -> bool {
+    let mut previous = None;
     capture.nodes[idx].pages[&page].leaves.iter().any(|&id| {
         let leaf = &capture.pages[page][id];
+        // Typst flattens column frames and does not retain a columns tag.
+        // A new paragraph that starts before the previous one ends cannot be
+        // represented by consecutive paragraphs in one PowerPoint text box.
+        let parallel = if let FrameItem::Text(text) = &leaf.item
+            && capture.nearest(leaf, Kind::Label).is_none()
+        {
+            let par = capture.nearest(leaf, Kind::Paragraph);
+            let (_, _, baseline) = crate::lower::text::script_metrics(capture, page, leaf, text);
+            let parallel = previous.is_some_and(|(p, y)| p != par && baseline <= y + 0.1);
+            previous = Some((par, baseline));
+            parallel
+        } else {
+            false
+        };
         body_object(capture, leaf)
+            || parallel
+            || capture.nearest(leaf, Kind::Label).is_none()
+                && capture.nearest(leaf, Kind::Paragraph).is_some_and(|p| {
+                    capture.nodes[p]
+                        .content
+                        .location()
+                        .and_then(|loc| capture.paragraph_alignment.get(&loc))
+                        .is_some_and(|a| a == "ctr")
+                })
+            || leaf.ancestors.iter().any(|&i| {
+                i > idx && matches!(capture.nodes[i].content.elem().name(), "grid" | "columns")
+            })
             || capture.nearest(leaf, Kind::Label).is_none()
                 && capture
                     .nearest(leaf, Kind::Table)

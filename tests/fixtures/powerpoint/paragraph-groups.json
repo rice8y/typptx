@@ -1,0 +1,302 @@
+{
+  "schema_version": 1,
+  "source": "paragraph-groups.typ",
+  "purpose": "Centered body text with independent native markers, side-by-side list paragraphs, and complete paragraphs around editable graphics.",
+  "slides": 3,
+  "slide_size_pt": [
+    600,
+    460
+  ],
+  "package": {
+    "native_tables": 2,
+    "pictures": 0
+  },
+  "regions": [
+    {
+      "id": "centered-first",
+      "slide": 1,
+      "box_pt": [
+        40,
+        54,
+        560,
+        80
+      ],
+      "line_count": 1,
+      "content_box_pt": [
+        278,
+        54,
+        343,
+        80
+      ]
+    },
+    {
+      "id": "centered-second",
+      "slide": 1,
+      "box_pt": [
+        40,
+        80,
+        560,
+        110
+      ],
+      "line_count": 1,
+      "content_box_pt": [
+        279,
+        80,
+        337,
+        110
+      ],
+      "lines": [
+        "Second"
+      ]
+    },
+    {
+      "id": "left-markers",
+      "slide": 1,
+      "box_pt": [
+        26,
+        53,
+        39,
+        110
+      ],
+      "line_count": 2
+    },
+    {
+      "id": "right-body",
+      "slide": 1,
+      "box_pt": [
+        500,
+        110,
+        575,
+        166
+      ],
+      "line_count": 2
+    },
+    {
+      "id": "rtl-body",
+      "slide": 1,
+      "box_pt": [
+        40,
+        167,
+        550,
+        225
+      ],
+      "line_count": 2,
+      "content_box_pt": [
+        247,
+        167,
+        340,
+        225
+      ]
+    },
+    {
+      "id": "rtl-markers",
+      "slide": 1,
+      "box_pt": [
+        559,
+        167,
+        574,
+        225
+      ],
+      "line_count": 2
+    },
+    {
+      "id": "cell-body",
+      "slide": 1,
+      "box_pt": [
+        50,
+        233,
+        322,
+        290
+      ],
+      "line_count": 2,
+      "content_box_pt": [
+        143,
+        233,
+        233,
+        290
+      ]
+    },
+    {
+      "id": "cell-markers",
+      "slide": 1,
+      "box_pt": [
+        33,
+        233,
+        49,
+        289
+      ],
+      "line_count": 2
+    },
+    {
+      "id": "multiline-center",
+      "slide": 1,
+      "box_pt": [
+        48,
+        295,
+        333,
+        377
+      ],
+      "line_count": 3
+    },
+    {
+      "id": "grid-intro",
+      "slide": 2,
+      "box_pt": [
+        49,
+        53,
+        210,
+        86
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "grid-left",
+      "slide": 2,
+      "box_pt": [
+        49,
+        89,
+        190,
+        120
+      ],
+      "line_count": 1,
+      "lines": [
+        "Left"
+      ]
+    },
+    {
+      "id": "grid-right",
+      "slide": 2,
+      "box_pt": [
+        197,
+        89,
+        344,
+        120
+      ],
+      "line_count": 1,
+      "lines": [
+        "Right"
+      ]
+    },
+    {
+      "id": "grid-after",
+      "slide": 2,
+      "box_pt": [
+        49,
+        120,
+        210,
+        150
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "columns-intro",
+      "slide": 2,
+      "box_pt": [
+        49,
+        152,
+        240,
+        184
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "column-left",
+      "slide": 2,
+      "box_pt": [
+        49,
+        187,
+        310,
+        244
+      ],
+      "line_count": 2
+    },
+    {
+      "id": "column-right",
+      "slide": 2,
+      "box_pt": [
+        318,
+        187,
+        567,
+        244
+      ],
+      "line_count": 2
+    },
+    {
+      "id": "columns-after",
+      "slide": 2,
+      "box_pt": [
+        49,
+        244,
+        245,
+        278
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "inline-shape",
+      "slide": 3,
+      "box_pt": [
+        28,
+        54,
+        245,
+        86
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "highlight",
+      "slide": 3,
+      "box_pt": [
+        28,
+        87,
+        310,
+        118
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "wrapped-highlight",
+      "slide": 3,
+      "box_pt": [
+        28,
+        122,
+        250,
+        202
+      ],
+      "line_count": 3
+    },
+    {
+      "id": "edit-cell",
+      "slide": 3,
+      "box_pt": [
+        34,
+        209,
+        226,
+        239
+      ],
+      "line_count": 1
+    },
+    {
+      "id": "leading-shape",
+      "slide": 3,
+      "box_pt": [
+        28,
+        252,
+        251,
+        333
+      ],
+      "line_count": 3
+    }
+  ],
+  "edits": [
+    {
+      "slide": 3,
+      "table": 1,
+      "row": 1,
+      "column": 1,
+      "before": "EDIT ME",
+      "after": "EDITED",
+      "region": "edit-cell"
+    }
+  ]
+}

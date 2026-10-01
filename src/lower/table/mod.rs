@@ -85,6 +85,9 @@ pub(super) fn table(
         let complex = capture.descendants(cell_idx).iter().any(|&n| {
             capture.nodes[n].kind == Kind::Table
                 || capture.nodes[n].content.is::<typst::layout::GridElem>()
+                || matches!(capture.nodes[n].kind, Kind::List | Kind::Enum)
+                    && capture.nodes[n].pages.contains_key(&page)
+                    && crate::lower::lists::needs_group(capture, n, page)
         }) || validate_text_leaves(capture, page, &body_ids).is_err();
         if complex {
             children.extend(container(capture, cell_idx, page, options)?);

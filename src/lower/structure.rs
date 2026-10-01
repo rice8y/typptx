@@ -6,7 +6,6 @@ use crate::lower::Options;
 use crate::lower::bibliography::bibliography;
 use crate::lower::lists::list;
 use crate::lower::table::table;
-use crate::lower::text::text_block_ids;
 use anyhow::{Result, anyhow, ensure};
 use typst::foundations::Value;
 use typst::layout::{Abs, FrameItem};
@@ -34,7 +33,7 @@ fn structure_inner(
         Kind::Table => table(capture, idx, page, options),
         Kind::Bibliography => bibliography(capture, idx, page).map(Element::Text),
         Kind::List | Kind::Enum => list(capture, idx, page, options),
-        _ => text_block_ids(capture, idx, page, ids).map(Element::Text),
+        _ => super::text::with_shapes(capture, idx, page, ids, options),
     };
     if let Some(first) = ids
         .iter()
