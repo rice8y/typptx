@@ -67,7 +67,7 @@ tools/powerpoint_roundtrip.ps1 -Presentation build/qa/input.pptx `
   -OutputDirectory build/office-run
 ```
 
-The [CI workflow](../.github/workflows/ci.yml) runs the Rust and Python tests on pull requests across macOS (Apple Silicon and Intel), Linux, and Windows. Hosted runners do not run PowerPoint; private-document and network-dependent tests remain opt-in.
+The [CI workflow](../.github/workflows/ci.yml) runs the Rust and Python tests and builds the packaged crate on pull requests across macOS (Apple Silicon and Intel), Linux, and Windows. Touying, Polylux, and Diatypst fixtures run in the ordinary Rust suite; their pinned Typst packages are downloaded on first use and cached. Hosted runners do not run PowerPoint. The private-document corpus remains opt-in.
 
 Run the PowerPoint script locally in an interactive Windows desktop session with licensed PowerPoint and the required fonts installed. The COM runner needs validation on the configured Windows/Office environment before treating its output as a baseline.
 

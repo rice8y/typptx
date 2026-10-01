@@ -1,7 +1,6 @@
 use std::{
     fs,
     io::{Cursor, Read},
-    path::Path,
 };
 use typptx::capture::{Capture, Kind};
 use typptx::{ir::*, lower, pptx, world::CompilerWorld};
@@ -1324,70 +1323,6 @@ fn unsupported_native_export_never_succeeds_with_svg() {
             .iter()
             .any(|e| matches!(e, Element::Drawing { .. }))
     );
-}
-
-#[test]
-#[ignore = "downloads Typst packages; run explicitly for the Touying integration fixture"]
-fn touying_has_zero_media_and_native_math_and_paths_on_every_page() {
-    let input = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/touying.typ");
-    let doc = CompilerWorld::new(&input, None, &[], &[])
-        .unwrap()
-        .compile()
-        .unwrap()
-        .0;
-    let p = lower::convert(&doc).unwrap();
-    assert_eq!(p.slides.len(), 31);
-    // Some system fallback fonts (e.g. SF NS for check marks on macOS) cannot
-    // be embedded. Their native text must remain editable and be reported.
-    assert!(
-        p.diagnostics.iter().all(|d| d.code == "font_not_embedded"),
-        "{:?}",
-        p.diagnostics
-    );
-    // Header/footer tags can be nested in a paragraph continued on the next
-    // page. Neither their text nor their full-page width belongs to the body.
-    for page in [27, 28] {
-        let body = p.slides[page]
-            .elements
-            .iter()
-            .filter_map(|e| match e {
-                Element::Text(t) if t.wrap => Some(t),
-                _ => None,
-            })
-            .max_by_key(|t| {
-                t.paragraphs
-                    .iter()
-                    .flat_map(|p| &p.runs)
-                    .map(|r| r.text.len())
-                    .sum::<usize>()
-            })
-            .unwrap();
-        assert!(body.bounds.right() < p.slides[page].width - 45.);
-    }
-    let mut zip = zip::ZipArchive::new(Cursor::new(pptx::write(&p).unwrap())).unwrap();
-    assert!(!zip.file_names().any(|n| n.starts_with("ppt/media/")));
-    let mut math = 0;
-    let mut paths = 0;
-    for page in 1..=31 {
-        let mut s = String::new();
-        zip.by_name(&format!("ppt/slides/slide{page}.xml"))
-            .unwrap()
-            .read_to_string(&mut s)
-            .unwrap();
-        let d = roxmltree::Document::parse(&s).unwrap();
-        assert!(d.descendants().any(|n| n.tag_name().name() == "txBody"));
-        assert!(!d.descendants().any(|n| n.tag_name().name() == "pic"));
-        math += d
-            .descendants()
-            .filter(|n| n.tag_name().name() == "oMath")
-            .count();
-        paths += d
-            .descendants()
-            .filter(|n| n.tag_name().name() == "custGeom")
-            .count();
-    }
-    assert!(math >= 20);
-    assert!(paths >= 200);
 }
 
 #[test]

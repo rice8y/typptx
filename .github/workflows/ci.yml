@@ -36,6 +36,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: test-${{ matrix.platform }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/typst/packages
+            ~/Library/Caches/typst/packages
+            ~/AppData/Local/typst/packages
+          key: typst-packages-${{ runner.os }}-${{ hashFiles('tests/fixtures/**/*.typ') }}
+          restore-keys: typst-packages-${{ runner.os }}-
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
