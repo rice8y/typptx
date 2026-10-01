@@ -30,6 +30,7 @@ kurbo = "=0.13.1"
 unicode-bidi = "=0.3.18"
 unicode-script = "=0.5.8"
 unicode-segmentation = "=1.13.3"
+hayro-interpret = "=0.7.0"
 
 [build-dependencies]
 cc = "1"

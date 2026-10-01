@@ -59,7 +59,8 @@ See `typptx --help` for all options.
 ## Limitations
 
 - Layout may differ from Typst.
-- Rotated tables, text on paths, complex SVG effects, embedded PDFs, and some equations are unsupported.
+- Rotated tables, text on paths, complex SVG effects, and some equations are unsupported.
+- Embedded PDFs become native paths, gradients, and individual pictures. Text with usable OpenType fonts and Unicode mappings stays editable; other glyphs become vector outlines. PDF blend modes, soft masks, and mesh shadings are unsupported.
 - Unsupported content stops conversion by default. Image fallbacks lose internal editability.
 - Fonts that cannot be embedded must be installed locally.
 - All pages must have the same dimensions.

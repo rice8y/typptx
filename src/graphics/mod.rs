@@ -1,5 +1,6 @@
 //! Convert the compiler's vector primitives directly to editable DrawingML.
 pub(crate) mod gradients;
+pub(crate) mod pdf;
 pub(crate) mod svg;
 pub(crate) mod tiling;
 

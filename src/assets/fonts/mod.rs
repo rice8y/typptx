@@ -110,6 +110,18 @@ fn collect_item_fonts(
         FrameItem::Image(image, _, _) => {
             if let ImageKind::Svg(svg) = image.kind() {
                 collect_svg_fonts(svg.tree(), page, used, fonts);
+            } else if let ImageKind::Pdf(pdf) = image.kind() {
+                for font in crate::graphics::pdf::fonts(pdf) {
+                    let info = font.info();
+                    let key = (
+                        family(&font),
+                        !baked(&font) && info.variant.weight.to_number() >= 600,
+                        !baked(&font) && info.variant.style != FontStyle::Normal,
+                    );
+                    if used.contains(&key) {
+                        fonts.entry(key).or_insert((page, font));
+                    }
+                }
             }
         }
         FrameItem::Group(g) => {

@@ -1,7 +1,7 @@
 //! Place raster images, SVG images, inline objects, and explicit fallbacks.
 use crate::compiler::capture::{Capture, Kind, Leaf};
 use crate::ir::*;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, anyhow};
 use std::collections::BTreeMap;
 use typst::layout::FrameItem;
 use typst::visualize::{Color, Paint};
@@ -143,18 +143,17 @@ pub(super) fn native_image(
             if clip.is_empty() {
                 return Ok(vec![]);
             }
+            let bounds = Rect {
+                x: 0.,
+                y: 0.,
+                width: size.x.to_pt(),
+                height: size.y.to_pt(),
+            };
             if let typst::visualize::ImageKind::Svg(svg) = image.kind() {
-                elements = crate::graphics::svg::convert_clipped(
-                    svg.tree(),
-                    Rect {
-                        x: 0.,
-                        y: 0.,
-                        width: size.x.to_pt(),
-                        height: size.y.to_pt(),
-                    },
-                    dpi,
-                    &clip,
-                )?;
+                elements =
+                    crate::graphics::svg::convert_clipped(svg.tree(), bounds, local_dpi, &clip)?;
+            } else if let typst::visualize::ImageKind::Pdf(pdf) = image.kind() {
+                elements = crate::graphics::pdf::convert(pdf, bounds, local_dpi, Some(&clip))?;
             } else {
                 for element in &mut elements {
                     if let Element::Picture {
@@ -205,8 +204,8 @@ pub(super) fn native_image(
         typst::visualize::ImageKind::Svg(svg) => {
             crate::graphics::svg::convert(svg.tree(), bounds, dpi)
         }
-        _ => bail!(
-            "embedded vector assets require conversion to native shapes; SVG/PDF picture fallback is disabled"
-        ),
+        typst::visualize::ImageKind::Pdf(pdf) => {
+            crate::graphics::pdf::convert(pdf, bounds, dpi, None)
+        }
     }
 }
