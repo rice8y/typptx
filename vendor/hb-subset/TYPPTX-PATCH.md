@@ -9,6 +9,8 @@ Changes:
 - `Blob::from_file` uses Rust file I/O and a copying HarfBuzz blob, allowing
   native Unicode paths on Windows without Unix-only `OsStrExt`.
 - The bundled build uses C++17, with MSVC `/bigobj` or MinGW `-Wa,-mbig-obj`.
+- Enum values are converted to `unsigned int` at the flag setter and name ID
+  boundaries, since MSVC represents these C enums as signed integers.
 - One return type explicitly spells its existing borrowed lifetime to silence a
   new Rust lint; Rust formatting has been normalized.
 

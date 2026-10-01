@@ -14,7 +14,8 @@ pub const HB_LANGUAGE_INVALID: *const hb_language_impl_t = std::ptr::null();
 
 impl From<hb_ot_name_id_predefined_t> for hb_ot_name_id_t {
     fn from(value: hb_ot_name_id_predefined_t) -> Self {
-        Self(value.0)
+        // MSVC represents the enum as a signed int; name IDs are unsigned.
+        Self(value.0 as std::os::raw::c_uint)
     }
 }
 

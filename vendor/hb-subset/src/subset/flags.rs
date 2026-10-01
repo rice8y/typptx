@@ -178,6 +178,9 @@ impl<'s> DerefMut for FlagRef<'s> {
 
 impl<'s> Drop for FlagRef<'s> {
     fn drop(&mut self) {
-        unsafe { sys::hb_subset_input_set_flags(self.0.as_raw(), self.1 .0 .0) }
+        // The setter takes unsigned int even when the enum is signed on MSVC.
+        unsafe {
+            sys::hb_subset_input_set_flags(self.0.as_raw(), self.1 .0 .0 as std::os::raw::c_uint)
+        }
     }
 }

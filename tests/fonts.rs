@@ -1,4 +1,44 @@
 #[test]
+fn harfbuzz_subset_flags_round_trip_through_the_native_api() {
+    use hb_subset::{Flags, SubsetInput, sys};
+
+    let mut input = SubsetInput::new().unwrap();
+    {
+        let mut flags = input.flags();
+        *flags = Flags::default();
+        flags.retain_glyph_indices().remove_hinting();
+        flags.0 |= sys::hb_subset_flags_t::DOWNGRADE_CFF2;
+    }
+    let expected = sys::hb_subset_flags_t::RETAIN_GIDS
+        | sys::hb_subset_flags_t::NO_HINTING
+        | sys::hb_subset_flags_t::DOWNGRADE_CFF2;
+    assert_eq!(input.flags().0, expected);
+
+    input.flags().retain_hinting();
+    assert_eq!(
+        input.flags().0,
+        sys::hb_subset_flags_t::RETAIN_GIDS | sys::hb_subset_flags_t::DOWNGRADE_CFF2
+    );
+    *input.flags() = Flags::default();
+    assert_eq!(*input.flags(), Flags::default());
+}
+
+#[test]
+fn harfbuzz_predefined_name_ids_preserve_values_and_the_invalid_sentinel() {
+    use hb_subset::sys::{hb_ot_name_id_predefined_t as Predefined, hb_ot_name_id_t as NameId};
+
+    for (predefined, expected) in [
+        (Predefined::COPYRIGHT, 0),
+        (Predefined::FONT_FAMILY, 1),
+        (Predefined::FULL_NAME, 4),
+        (Predefined::VARIATIONS_PS_PREFIX, 25),
+        (Predefined::INVALID, 0xffff),
+    ] {
+        assert_eq!(NameId::from(predefined).0, expected);
+    }
+}
+
+#[test]
 fn variable_instances_are_distinct_native_typefaces_in_the_presentation() {
     use std::{collections::BTreeSet, fs, path::Path};
     use typptx::{ir::Element, lower, pptx, world::CompilerWorld};
