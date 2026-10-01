@@ -1,6 +1,6 @@
-<img src="docs/assets/logo.svg" alt="Typptx" width="100%">
+# <img src="docs/assets/logo.svg" alt="Typptx" width="100%">
 
-Convert Typst to PowerPoint with editable text, lists, tables, equations, and vector shapes.
+Typptx is a command-line tool that converts Typst to PowerPoint with editable text, lists, tables, equations, and vector shapes.
 
 ## Installation
 
