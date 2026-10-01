@@ -6,7 +6,7 @@ CeTZ and Typst drawing primitives become editable shapes. Imported images, inclu
 
 Typptx has the following features:
 
-- Native list numbering and tables with merged cells
+- Native list numbering, picture bullets, and tables with merged cells
 - Editable Office Math or Typst-rendered SVG equations
 - Font embedding with support for variable fonts
 

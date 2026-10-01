@@ -269,13 +269,7 @@ pub(super) fn vector(shape: &VectorShape, id: usize) -> p::Shape {
         ..Default::default()
     }
 }
-pub(super) fn picture(
-    id: usize,
-    bounds: Rect,
-    png: &str,
-    svg: Option<&str>,
-    equation: Option<&str>,
-) -> p::Picture {
+pub(super) fn blip(png: &str, svg: Option<&str>) -> a::Blip {
     let mut blip = a::Blip {
         embed: Some(png.into()),
         ..Default::default()
@@ -297,6 +291,16 @@ pub(super) fn picture(
             ..Default::default()
         });
     }
+    blip
+}
+pub(super) fn picture(
+    id: usize,
+    bounds: Rect,
+    png: &str,
+    svg: Option<&str>,
+    equation: Option<&str>,
+) -> p::Picture {
+    let blip = blip(png, svg);
     p::Picture {
         non_visual_picture_properties: Box::new(p::NonVisualPictureProperties {
             non_visual_drawing_properties: Box::new(properties(

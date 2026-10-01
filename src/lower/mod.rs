@@ -97,7 +97,7 @@ fn convert_document(
     };
     let notes = crate::compiler::notes::extract(document)?;
     let mut output = Presentation {
-        schema_version: 16,
+        schema_version: 17,
         slides: Vec::new(),
         diagnostics: Vec::new(),
         fonts: Vec::new(),

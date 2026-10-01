@@ -588,6 +588,7 @@ fn image(
                 bounds: local,
                 clip: None,
                 extension: extension.into(),
+                alt: None,
                 svg: None,
                 bytes,
             }]

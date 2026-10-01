@@ -33,7 +33,7 @@ fn structure_inner(
     let lower = |capture: &Capture| match kind {
         Kind::Table => table(capture, idx, page, options),
         Kind::Bibliography => bibliography(capture, idx, page).map(Element::Text),
-        Kind::List | Kind::Enum => list(capture, idx, page).map(Element::Text),
+        Kind::List | Kind::Enum => list(capture, idx, page, options).map(Element::Text),
         _ => text_block_ids(capture, idx, page, ids).map(Element::Text),
     };
     if let Some(first) = ids

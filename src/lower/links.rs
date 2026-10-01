@@ -1,4 +1,4 @@
-//! Preserve internal links from Typst's resolved, positioned link regions.
+//! Preserve links from Typst's resolved, positioned click regions.
 use crate::{compiler::capture::Leaf, geometry::paths, ir::*};
 use typst::{layout::FrameItem, model::Destination};
 
@@ -10,11 +10,13 @@ pub(super) fn collect(leaves: &[Leaf], document: &typst_layout::PagedDocument) -
                 return None;
             };
             let target = match dest {
-                Destination::Position(p) => p.page.get(),
-                Destination::Location(l) => document.introspector().position(*l)?.page.get(),
-                Destination::Url(_) => return None, // Text runs already carry URL links.
+                Destination::Position(p) => LinkTarget::Slide(p.page.get()),
+                Destination::Location(l) => {
+                    LinkTarget::Slide(document.introspector().position(*l)?.page.get())
+                }
+                Destination::Url(url) => LinkTarget::Url(url.to_string()),
             };
-            if target > document.pages().len() {
+            if matches!(target, LinkTarget::Slide(page) if page > document.pages().len()) {
                 return None;
             }
             let t = leaf.transform;

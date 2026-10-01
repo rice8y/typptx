@@ -16,26 +16,92 @@ use ooxmlsdk::{
     sdk::SdkType,
 };
 
-fn image_part(
-    doc: &mut PresentationDocument,
-    slide: &SlidePart,
-    ext: &str,
-    bytes: &[u8],
-) -> Result<String> {
-    let content_type = match ext {
-        "jpg" | "jpeg" => "image/jpeg",
-        "svg" => "image/svg+xml",
-        _ => "image/png",
-    };
-    let image = slide.add_image_part(doc, content_type)?;
-    image.set_data(doc, bytes.to_vec())?;
-    Ok(slide.get_id_of_part(doc, &image)?.into())
+#[derive(Default)]
+struct Media(
+    std::collections::HashMap<(&'static str, u64), Vec<ooxmlsdk::parts::image_part::ImagePart>>,
+);
+
+impl Media {
+    fn add(
+        &mut self,
+        doc: &mut PresentationDocument,
+        slide: &SlidePart,
+        ext: &str,
+        bytes: &[u8],
+    ) -> Result<String> {
+        use std::hash::{Hash, Hasher};
+        let content_type = match ext {
+            "jpg" | "jpeg" => "image/jpeg",
+            "svg" => "image/svg+xml",
+            _ => "image/png",
+        };
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        bytes.hash(&mut hash);
+        let candidates = self.0.entry((content_type, hash.finish())).or_default();
+        for image in candidates.iter() {
+            // Compare bytes as well so a hash collision never substitutes an asset.
+            if image.try_data(doc)? == Some(bytes) {
+                return Ok(slide.create_relationship_to_part(doc, image.clone())?);
+            }
+        }
+        let image = slide.add_image_part(doc, content_type)?;
+        image.set_data(doc, bytes.to_vec())?;
+        let relationship = slide.get_id_of_part(doc, &image)?.to_owned();
+        candidates.push(image);
+        Ok(relationship)
+    }
 }
 #[derive(Default)]
 struct Relationships {
     links: Vec<String>,
+    bullets: Vec<(Bullet, a::Blip)>,
 }
 impl Relationships {
+    fn prepare_bullets(
+        &mut self,
+        slide: &Slide,
+        part: &SlidePart,
+        doc: &mut PresentationDocument,
+        media: &mut Media,
+    ) -> Result<()> {
+        for element in slide.elements.iter().flat_map(Element::walk) {
+            let paragraphs: Vec<_> = match element {
+                Element::Text(t) => t.paragraphs.iter().collect(),
+                Element::Table(t) => t.cells.iter().flat_map(|c| &c.paragraphs).collect(),
+                _ => Vec::new(),
+            };
+            for bullet in paragraphs.iter().filter_map(|p| p.bullet.as_ref()) {
+                let Bullet::Picture {
+                    extension,
+                    bytes,
+                    svg,
+                    ..
+                } = bullet
+                else {
+                    continue;
+                };
+                if self.bullets.iter().any(|(b, _)| b == bullet) {
+                    continue;
+                }
+                let png_rel = media.add(doc, part, extension, bytes)?;
+                let svg_rel = svg
+                    .as_ref()
+                    .map(|svg| media.add(doc, part, "svg", svg.as_bytes()))
+                    .transpose()?;
+                self.bullets
+                    .push((bullet.clone(), drawing::blip(&png_rel, svg_rel.as_deref())));
+            }
+        }
+        Ok(())
+    }
+    fn bullet(&self, bullet: &Bullet) -> a::Blip {
+        self.bullets
+            .iter()
+            .find(|(b, _)| b == bullet)
+            .expect("picture bullets are registered before serializing text")
+            .1
+            .clone()
+    }
     fn add(&mut self, _kind: &str, target: &str, _external: bool) -> String {
         if let Some(index) = self.links.iter().position(|url| url == target) {
             return format!("link{}", index + 1);
@@ -123,6 +189,7 @@ fn element_node(
     rels: &mut Relationships,
     doc: &mut PresentationDocument,
     slide_part: &SlidePart,
+    media: &mut Media,
 ) -> Result<p::ShapeTreeChoice> {
     let nonlinear = match element {
         Element::Shape(s) => {
@@ -147,6 +214,7 @@ fn element_node(
             rels,
             doc,
             slide_part,
+            media,
         );
     }
     let id = *next_id;
@@ -155,7 +223,7 @@ fn element_node(
         Element::Group(g) => {
             let mut children = Vec::new();
             for child in &g.elements {
-                let child = element_node(child, next_id, rels, doc, slide_part)?;
+                let child = element_node(child, next_id, rels, doc, slide_part, media)?;
                 children.push(match child {
                     p::ShapeTreeChoice::Shape(v) => p::GroupShapeChoice::Shape(v),
                     p::ShapeTreeChoice::GroupShape(v) => p::GroupShapeChoice::GroupShape(v),
@@ -231,13 +299,18 @@ fn element_node(
             bytes,
             clip,
             svg,
+            alt,
         } => {
-            let rel = image_part(doc, slide_part, extension, bytes)?;
+            let rel = media.add(doc, slide_part, extension, bytes)?;
             let svg_rel = svg
                 .as_ref()
-                .map(|svg| image_part(doc, slide_part, "svg", svg.as_bytes()))
+                .map(|svg| media.add(doc, slide_part, "svg", svg.as_bytes()))
                 .transpose()?;
             let mut picture = drawing::picture(id, *bounds, &rel, svg_rel.as_deref(), None);
+            picture
+                .non_visual_picture_properties
+                .non_visual_drawing_properties
+                .description = alt.clone();
             if let Some(commands) = clip {
                 // Office stretches a picture into the geometry's visible bounds.
                 // Crop the source image to that rectangle before applying a mask.
@@ -306,8 +379,8 @@ fn element_node(
         | Element::MathSvg {
             bounds, svg, png, ..
         } => {
-            let png_rel = image_part(doc, slide_part, "png", png)?;
-            let svg_rel = image_part(doc, slide_part, "svg", svg.as_bytes())?;
+            let png_rel = media.add(doc, slide_part, "png", png)?;
+            let svg_rel = media.add(doc, slide_part, "svg", svg.as_bytes())?;
             let equation = if let Element::MathSvg { source_id, .. } = element {
                 Some(source_id.as_str())
             } else {

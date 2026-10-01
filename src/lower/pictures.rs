@@ -185,6 +185,7 @@ pub(super) fn native_image(
                 bounds,
                 clip: None,
                 extension: extension.into(),
+                alt: image.alt().map(str::to_owned),
                 svg: None,
                 bytes: crate::assets::images::resample(raster, bounds, extension, dpi)?,
             }])

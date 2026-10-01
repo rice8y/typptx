@@ -80,7 +80,7 @@ pub(super) fn table(
             .collect();
         let mut parts = BTreeMap::new();
         for i in cell_lists {
-            let list = list(capture, i, page)?;
+            let list = list(capture, i, page, options)?;
             let ids = &capture.nodes[i].pages[&page].leaves;
             let baselines: Vec<_> = ids
                 .iter()

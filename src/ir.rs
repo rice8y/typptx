@@ -244,6 +244,14 @@ pub struct VectorShape {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Bullet {
+    Picture {
+        size: f64,
+        extension: String,
+        #[serde(skip)]
+        bytes: Vec<u8>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        svg: Option<String>,
+    },
     Character {
         character: String,
         font: String,
@@ -354,6 +362,8 @@ pub enum Element {
         clip: Option<Vec<PathCommand>>,
         extension: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
+        alt: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         svg: Option<String>,
         #[serde(skip)]
         bytes: Vec<u8>,
@@ -463,9 +473,16 @@ pub struct Slide {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlideLink {
-    /// One-based destination slide number.
-    pub target: usize,
+    pub target: LinkTarget,
     pub region: VectorShape,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum LinkTarget {
+    /// One-based destination slide number.
+    Slide(usize),
+    Url(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

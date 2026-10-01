@@ -302,3 +302,24 @@ fn pdf_inside_typst_tiling_stays_pictures() {
     );
     pptx::write(&p).unwrap();
 }
+
+#[test]
+fn pdf_picture_retains_its_alternative_text() {
+    let source = page("1 0 0 rg 0 0 200 100 re f", "", vec![]);
+    let p = compile(
+        &source,
+        "#image(\"asset.pdf\",width:200pt,height:100pt,alt:\"Red rectangle PDF\")",
+        &Default::default(),
+    );
+    assert!(elements(&p).iter().any(
+        |e| matches!(e, Element::Picture { alt: Some(alt), .. } if alt == "Red rectangle PDF")
+    ));
+    use std::io::Read;
+    let mut zip = zip::ZipArchive::new(Cursor::new(pptx::write(&p).unwrap())).unwrap();
+    let mut xml = String::new();
+    zip.by_name("ppt/slides/slide1.xml")
+        .unwrap()
+        .read_to_string(&mut xml)
+        .unwrap();
+    assert!(xml.contains("descr=\"Red rectangle PDF\""));
+}

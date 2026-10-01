@@ -281,12 +281,12 @@ fn diatypst_navigation_and_themes() {
             p.slides[beta]
                 .links
                 .iter()
-                .any(|link| link.target == alpha + 1)
+                .any(|link| link.target == LinkTarget::Slide(alpha + 1))
         );
         assert!(p.slides.iter().all(|s| {
             s.links
                 .iter()
-                .all(|l| l.target > 0 && l.target <= p.slides.len())
+                .all(|l| matches!(l.target, LinkTarget::Slide(n) if n > 0 && n <= p.slides.len()))
         }));
         assert!(text(&p.slides[beta]).contains("Navigation footer"));
     }

@@ -84,7 +84,7 @@ fn end_properties(run: &Run) -> a::EndParagraphRunProperties {
         EndParagraphRunPropertiesChoice
     )
 }
-pub(super) fn properties(p: &Paragraph) -> a::ParagraphProperties {
+pub(super) fn properties(p: &Paragraph, rels: &Relationships) -> a::ParagraphProperties {
     let mut out = a::ParagraphProperties {
         level: Some(i32::from(p.level)),
         // PowerPoint mirrors paragraph margins when rtl is set: marL is
@@ -114,6 +114,16 @@ pub(super) fn properties(p: &Paragraph) -> a::ParagraphProperties {
         ..Default::default()
     };
     out.paragraph_properties_choice4 = Some(match &p.bullet {
+        Some(bullet @ Bullet::Picture { size, .. }) => {
+            out.paragraph_properties_choice2 = Some(
+                a::ParagraphPropertiesChoice2::BulletSizePoints(a::BulletSizePoints {
+                    val: centipt(*size) as i32,
+                }),
+            );
+            a::ParagraphPropertiesChoice4::PictureBullet(Box::new(a::PictureBullet {
+                blip: Box::new(rels.bullet(bullet)),
+            }))
+        }
         Some(Bullet::Character {
             character,
             font,
@@ -179,8 +189,8 @@ pub(super) fn properties(p: &Paragraph) -> a::ParagraphProperties {
 // The schema names the same paragraph attributes separately for each list level.
 // Keep their mapping in one macro so fixes affect the paragraph and all levels.
 macro_rules! list_level {
-    ($p:expr,$ty:ident,$f1:ident,$e1:ident,$f2:ident,$e2:ident,$f3:ident,$e3:ident,$f4:ident,$e4:ident) => {{
-        let p = properties($p);
+    ($p:expr,$rels:expr,$ty:ident,$f1:ident,$e1:ident,$f2:ident,$e2:ident,$f3:ident,$e3:ident,$f4:ident,$e4:ident) => {{
+        let p = properties($p, $rels);
         Box::new(a::$ty {
             left_margin: p.left_margin,
             right_margin: p.right_margin,
@@ -225,7 +235,7 @@ macro_rules! list_level {
         })
     }};
 }
-fn list_style(block: &TextBlock) -> a::ListStyle {
+fn list_style(block: &TextBlock, rels: &Relationships) -> a::ListStyle {
     let mut style = a::ListStyle::default();
     if block.role != "list" || block.paragraphs.is_empty() {
         return style;
@@ -246,6 +256,7 @@ fn list_style(block: &TextBlock) -> a::ListStyle {
             0 => {
                 style.level1_paragraph_properties = Some(list_level!(
                     &p,
+                    rels,
                     Level1ParagraphProperties,
                     level1_paragraph_properties_choice1,
                     Level1ParagraphPropertiesChoice,
@@ -260,6 +271,7 @@ fn list_style(block: &TextBlock) -> a::ListStyle {
             1 => {
                 style.level2_paragraph_properties = Some(list_level!(
                     &p,
+                    rels,
                     Level2ParagraphProperties,
                     level2_paragraph_properties_choice1,
                     Level2ParagraphPropertiesChoice,
@@ -274,6 +286,7 @@ fn list_style(block: &TextBlock) -> a::ListStyle {
             2 => {
                 style.level3_paragraph_properties = Some(list_level!(
                     &p,
+                    rels,
                     Level3ParagraphProperties,
                     level3_paragraph_properties_choice1,
                     Level3ParagraphPropertiesChoice,
@@ -288,6 +301,7 @@ fn list_style(block: &TextBlock) -> a::ListStyle {
             3 => {
                 style.level4_paragraph_properties = Some(list_level!(
                     &p,
+                    rels,
                     Level4ParagraphProperties,
                     level4_paragraph_properties_choice1,
                     Level4ParagraphPropertiesChoice,
@@ -302,6 +316,7 @@ fn list_style(block: &TextBlock) -> a::ListStyle {
             4 => {
                 style.level5_paragraph_properties = Some(list_level!(
                     &p,
+                    rels,
                     Level5ParagraphProperties,
                     level5_paragraph_properties_choice1,
                     Level5ParagraphPropertiesChoice,
@@ -316,6 +331,7 @@ fn list_style(block: &TextBlock) -> a::ListStyle {
             5 => {
                 style.level6_paragraph_properties = Some(list_level!(
                     &p,
+                    rels,
                     Level6ParagraphProperties,
                     level6_paragraph_properties_choice1,
                     Level6ParagraphPropertiesChoice,
@@ -330,6 +346,7 @@ fn list_style(block: &TextBlock) -> a::ListStyle {
             6 => {
                 style.level7_paragraph_properties = Some(list_level!(
                     &p,
+                    rels,
                     Level7ParagraphProperties,
                     level7_paragraph_properties_choice1,
                     Level7ParagraphPropertiesChoice,
@@ -344,6 +361,7 @@ fn list_style(block: &TextBlock) -> a::ListStyle {
             7 => {
                 style.level8_paragraph_properties = Some(list_level!(
                     &p,
+                    rels,
                     Level8ParagraphProperties,
                     level8_paragraph_properties_choice1,
                     Level8ParagraphPropertiesChoice,
@@ -358,6 +376,7 @@ fn list_style(block: &TextBlock) -> a::ListStyle {
             8 => {
                 style.level9_paragraph_properties = Some(list_level!(
                     &p,
+                    rels,
                     Level9ParagraphProperties,
                     level9_paragraph_properties_choice1,
                     Level9ParagraphPropertiesChoice,
@@ -582,7 +601,7 @@ pub(super) fn paragraphs(
             .collect();
     }
     let mut out = a::Paragraph {
-        paragraph_properties: Some(Box::new(properties(p))),
+        paragraph_properties: Some(Box::new(properties(p, rels))),
         ..Default::default()
     };
     for run in &p.runs {
@@ -702,7 +721,7 @@ pub(super) fn textbox(block: &TextBlock, id: usize, rels: &mut Relationships) ->
                 )),
                 ..Default::default()
             }),
-            list_style: Some(Box::new(list_style(block))),
+            list_style: Some(Box::new(list_style(block, rels))),
             paragraph: block
                 .paragraphs
                 .iter()

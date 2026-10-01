@@ -1,5 +1,5 @@
 //! Assemble package parts, slide masters, fonts, notes, and document properties.
-use super::{Relationships, defaults, drawing, element_node, emu, namespaces};
+use super::{Media, Relationships, defaults, drawing, element_node, emu, namespaces};
 use crate::ir::*;
 use anyhow::{Context, Result, ensure};
 use ooxmlsdk::{
@@ -139,6 +139,7 @@ pub fn write(presentation: &Presentation) -> Result<Vec<u8>> {
         None
     };
     let mut ids = Vec::new();
+    let mut media = Media::default();
     let slide_parts = (0..presentation.slides.len())
         .map(|_| part.add_new_part_auto_id::<_, SlidePart>(&mut doc))
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -165,6 +166,7 @@ pub fn write(presentation: &Presentation) -> Result<Vec<u8>> {
             )?;
         }
         let mut rels = Relationships::default();
+        rels.prepare_bullets(slide, &slide_part, &mut doc, &mut media)?;
         let mut shapes = defaults::shape_tree();
         let mut next_id = 2;
         for element in &slide.elements {
@@ -174,7 +176,49 @@ pub fn write(presentation: &Presentation) -> Result<Vec<u8>> {
                 &mut rels,
                 &mut doc,
                 &slide_part,
+                &mut media,
             )?);
+        }
+        for link in &slide.links {
+            let (relationship, action, name) = match &link.target {
+                LinkTarget::Slide(number) => {
+                    let target = number
+                        .checked_sub(1)
+                        .and_then(|i| slide_parts.get(i))
+                        .context("internal link targets a nonexistent slide")?;
+                    let relationship = slide_part
+                        .create_relationship_to_part_with_id(
+                            &mut doc,
+                            target.clone(),
+                            format!("navigation{number}"),
+                        )
+                        .with_context(|| format!("create link to slide {number}"))?;
+                    (
+                        relationship,
+                        Some("ppaction://hlinksldjump".into()),
+                        format!("Link to slide {number}"),
+                    )
+                }
+                LinkTarget::Url(url) => (
+                    rels.add("hyperlink", url, true),
+                    None,
+                    "External link".into(),
+                ),
+            };
+            let mut shape = drawing::vector(&link.region, next_id);
+            next_id += 1;
+            let properties = &mut shape
+                .non_visual_shape_properties
+                .non_visual_drawing_properties;
+            properties.name = name;
+            properties.hyperlink_on_click = Some(Box::new(a::HyperlinkOnClick {
+                id: Some(relationship),
+                action,
+                ..Default::default()
+            }));
+            shapes
+                .shape_tree_choice
+                .push(p::ShapeTreeChoice::Shape(Box::new(shape)));
         }
         for (index, url) in rels.links.iter().enumerate() {
             slide_part.add_hyperlink_relationship(
@@ -182,34 +226,6 @@ pub fn write(presentation: &Presentation) -> Result<Vec<u8>> {
                 format!("link{}", index + 1),
                 url.clone(),
             )?;
-        }
-        for link in &slide.links {
-            let target = link
-                .target
-                .checked_sub(1)
-                .and_then(|i| slide_parts.get(i))
-                .context("internal link targets a nonexistent slide")?;
-            let relationship = slide_part
-                .create_relationship_to_part_with_id(
-                    &mut doc,
-                    target.clone(),
-                    format!("navigation{}", link.target),
-                )
-                .with_context(|| format!("create link to slide {}", link.target))?;
-            let mut shape = drawing::vector(&link.region, next_id);
-            next_id += 1;
-            let properties = &mut shape
-                .non_visual_shape_properties
-                .non_visual_drawing_properties;
-            properties.name = format!("Link to slide {}", link.target);
-            properties.hyperlink_on_click = Some(Box::new(a::HyperlinkOnClick {
-                id: Some(relationship),
-                action: Some("ppaction://hlinksldjump".into()),
-                ..Default::default()
-            }));
-            shapes
-                .shape_tree_choice
-                .push(p::ShapeTreeChoice::Shape(Box::new(shape)));
         }
         let background = slide.background.map(|c| {
             Box::new(p::Background {

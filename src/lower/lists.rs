@@ -9,7 +9,14 @@ use typst::foundations::{StyleChain, StyledElem, Value};
 use typst::layout::FrameItem;
 use typst::text::TextElem;
 
-pub(super) fn list(capture: &Capture, idx: usize, page: usize) -> Result<TextBlock> {
+pub(super) fn list(
+    capture: &Capture,
+    idx: usize,
+    page: usize,
+    options: &crate::lower::Options,
+) -> Result<TextBlock> {
+    let (prepared, markers) = picture_markers(capture, idx, page, options.image_dpi)?;
+    let capture = prepared.as_ref();
     let node = &capture.nodes[idx];
     let np = &node.pages[&page];
     validate_text_leaves(capture, page, &np.leaves)?;
@@ -175,7 +182,9 @@ pub(super) fn list(capture: &Capture, idx: usize, page: usize) -> Result<TextBlo
                 let automatic = owner.kind == Kind::Enum
                     && !boolean(owner, "reversed")
                     && !boolean(owner, "full");
-                if let Some(scheme) = scheme.filter(|_| automatic) {
+                if let Some(marker) = markers.get(&label_idx) {
+                    p.paragraph.bullet = Some(marker.clone());
+                } else if let Some(scheme) = scheme.filter(|_| automatic) {
                     let ordinal = (0..body_idx)
                         .filter(|&i| {
                             capture.nodes[i].kind == Kind::ItemBody
@@ -258,6 +267,103 @@ pub(super) fn list(capture: &Capture, idx: usize, page: usize) -> Result<TextBlo
         paragraphs: measured.into_iter().map(|p| p.paragraph).collect(),
         wrap: !capture.has_fixed_math_layout(page, &np.leaves),
     })
+}
+
+/// Replace imported-image labels with layout placeholders while the list's
+/// paragraphs are measured. The actual marker is stored as a picture bullet.
+fn picture_markers(
+    capture: &Capture,
+    idx: usize,
+    page: usize,
+    dpi: Option<u32>,
+) -> Result<(std::borrow::Cow<'_, Capture>, HashMap<usize, Bullet>)> {
+    use std::borrow::Cow;
+    use typst::{
+        layout::{Em, Transform},
+        syntax::Span,
+        text::Glyph,
+    };
+    let mut prepared = Cow::Borrowed(capture);
+    let mut markers = HashMap::new();
+    for label in capture.descendants(idx) {
+        let node = &capture.nodes[label];
+        if node.kind != Kind::Label {
+            continue;
+        }
+        let Some(np) = node.pages.get(&page) else {
+            continue;
+        };
+        let images: Vec<_> = np
+            .leaves
+            .iter()
+            .copied()
+            .filter(|&id| matches!(capture.pages[page][id].item, FrameItem::Image(..)))
+            .collect();
+        let Some(&id) = images.first() else { continue };
+        ensure!(
+            images.len() == 1
+                && np.leaves.iter().all(|&i| matches!(
+                    capture.pages[page][i].item,
+                    FrameItem::Image(..) | FrameItem::Link(..)
+                )),
+            "picture bullets need a single image marker"
+        );
+        let leaf = &capture.pages[page][id];
+        let FrameItem::Image(image, size, _) = &leaf.item else {
+            unreachable!()
+        };
+        let mut elements = crate::lower::pictures::native_image(leaf, image, *size, dpi)?;
+        let Some(Element::Picture {
+            bounds,
+            extension,
+            bytes,
+            svg,
+            clip: None,
+            ..
+        }) = elements.pop()
+        else {
+            anyhow::bail!(
+                "picture bullet requires an unclipped image without a separate transform"
+            );
+        };
+        markers.insert(
+            label,
+            Bullet::Picture {
+                size: bounds.height,
+                extension,
+                bytes,
+                svg,
+            },
+        );
+        let mut text = capture.pages[page]
+            .iter()
+            .enumerate()
+            .filter_map(|(i, l)| {
+                if let FrameItem::Text(t) = &l.item {
+                    Some((i, t))
+                } else {
+                    None
+                }
+            })
+            .min_by_key(|(i, _)| i.abs_diff(id))
+            .map(|(_, t)| t.clone())
+            .unwrap_or_else(crate::math::svg::empty_text);
+        text.text = "\u{200b}".into();
+        text.glyphs = vec![Glyph {
+            id: 0,
+            x_advance: Em::new(bounds.width / text.size.to_pt()),
+            x_offset: Em::zero(),
+            y_advance: Em::zero(),
+            y_offset: Em::zero(),
+            range: 0..3,
+            span: (Span::detached(), 0),
+        }];
+        let leaf = &mut prepared.to_mut().pages[page][id];
+        leaf.item = FrameItem::Text(text);
+        leaf.position = (bounds.x, np.baseline.unwrap_or(bounds.bottom()));
+        leaf.transform = Transform::identity();
+    }
+    Ok((prepared, markers))
 }
 
 pub(super) fn owner_list(capture: &Capture, idx: usize) -> Option<usize> {

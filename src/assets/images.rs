@@ -41,6 +41,7 @@ pub fn vector(
         bounds,
         clip: None,
         extension: "png".into(),
+        alt: image.alt().map(str::to_owned),
         bytes: render_fallback(&page, dpi)?,
         svg: Some(svg),
     })
